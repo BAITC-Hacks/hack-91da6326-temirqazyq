@@ -14,6 +14,7 @@ type Props = {
 
 export default function Planner({ meta, world, decisions, validation, busy, onChange, onScore }: Props) {
   const [pick, setPick] = useState<Record<string, string>>({})
+  const [activeDirection, setActiveDirection] = useState('all')
   const budget = world?.budget ?? meta.rules.budget
   const blocked = new Set(world?.blocked_measures ?? [])
   const chosen = new Map(decisions.map((d) => [d.measure_id, d]))
@@ -26,11 +27,31 @@ export default function Planner({ meta, world, decisions, validation, busy, onCh
   const remove = (i: number) => onChange(decisions.filter((_, j) => j !== i))
   const cost = validation?.total_cost ?? decisions.reduce((s, d) => s + (meta.measures.find((m) => m.id === d.measure_id)?.cost ?? 0), 0)
   const pct = Math.min(100, (cost / budget) * 100)
+  const directionEntries = Object.entries(meta.directions)
+  const visibleDirections = directionEntries.filter(([dir]) => activeDirection === 'all' || dir === activeDirection)
 
   return (
     <div className="grid planner">
       <div>
-        {Object.entries(meta.directions).map(([dir, title]) => (
+        <section className="howto panel mb">
+          <p className="eyebrow">Ваш первый ход</p>
+          <h2>Соберите план для города</h2>
+          <p className="muted">Выберите 5 мероприятий. Районные меры требуют района. Затем нажмите «Рассчитать результат».</p>
+          <div className="howto-steps" aria-label="Порядок действий">
+            <span className="current"><b>1</b> Выбрать 5 мер</span>
+            <span><b>2</b> Рассчитать результат</span>
+            <span><b>3</b> Изучить совет AI</span>
+          </div>
+        </section>
+        <div className="catalog-head row spread">
+          <div><h2>Каталог мероприятий</h2><p className="muted small">Нажмите «Добавить», чтобы включить меру в план.</p></div>
+          <span className="small muted">{decisions.length} из {N} выбрано</span>
+        </div>
+        <div className="filters mb" aria-label="Фильтр направлений">
+          <button className={`small ${activeDirection === 'all' ? 'active' : ''}`} onClick={() => setActiveDirection('all')}>Все</button>
+          {directionEntries.map(([dir, title]) => <button key={dir} className={`small ${activeDirection === dir ? 'active' : ''}`} onClick={() => setActiveDirection(dir)}>{title}</button>)}
+        </div>
+        {visibleDirections.map(([dir, title]) => (
           <div className="dir-block" key={dir}>
             <h3><i style={{ background: DIR_COLORS[dir] }} />{title} <span className="muted" style={{ textTransform: 'none', letterSpacing: 0 }}>· не более {meta.rules.max_per_direction}</span></h3>
             <div className="measures">
