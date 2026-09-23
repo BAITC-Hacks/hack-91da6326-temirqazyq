@@ -115,8 +115,16 @@ export type Compare = {
   directions: { name: string; a: number; b: number }[]
 }
 
+/* Базовый адрес API. Пусто — значит бэкенд на том же origin (так работает
+   docker compose: FastAPI сам раздаёт собранный фронт). Если фронт живёт
+   отдельно (например, на Netlify), задайте VITE_API_BASE при сборке. */
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...init })
+  const r = await fetch(API_BASE + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  })
   if (!r.ok) {
     let detail: unknown = r.statusText
     try { detail = (await r.json()).detail } catch { /* ignore */ }
@@ -144,5 +152,5 @@ export const api = {
   leaderboard: () => req<Entry[]>('/api/leaderboard'),
   entry: (id: number) => req<Entry & { result: ScoreResult }>(`/api/leaderboard/${id}`),
   compare: (a: { decisions: Decision[]; event_id: string | null }, b: { decisions: Decision[]; event_id: string | null }) => post<Compare>('/api/compare', { a, b }),
-  reportUrl: (id: number) => `/api/report/${id}`,
+  reportUrl: (id: number) => `${API_BASE}/api/report/${id}`,
 }

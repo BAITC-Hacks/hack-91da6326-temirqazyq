@@ -1,0 +1,20 @@
+# Netlify раздаёт ТОЛЬКО фронтенд. Бэкенд (FastAPI + numpy-оракул + SQLite)
+# сюда не переносится: у Netlify Functions нет Python-рантайма, а состояние
+# лидерборда и прогретый оракул не переживают холодный старт.
+# Поэтому при сборке обязательно задайте VITE_API_BASE — адрес вашего бэкенда.
+
+[build]
+  base = "akim-sim/frontend"
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Задайте в настройках сайта (Site configuration → Environment variables):
+  # VITE_API_BASE = "https://адрес-вашего-бэкенда"
+
+# SPA: все пути отдаём index.html, кроме самого API
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
