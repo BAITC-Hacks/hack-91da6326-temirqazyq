@@ -26,6 +26,32 @@ export function Hint({
   )
 }
 
+export function Fold({
+  title,
+  note,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  note?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="foldbox">
+      <button className="fold-toggle" onClick={onToggle} aria-expanded={open}>
+        <span className="caret">{open ? '▾' : '▸'}</span>
+        <span className="t">{title}</span>
+        {note && <span className="s">{note}</span>}
+        <span className="act">{open ? 'свернуть' : 'раскрыть'}</span>
+      </button>
+      {open && <div className="foldbody">{children}</div>}
+    </section>
+  );
+}
+
 /* ——— Dumbbell «до → после».
    Форма выбрана вместо бара с ненулевой базой и вместо радара: значение несёт
    положение точки, поэтому обрезанный диапазон не врёт длиной. Один тон, две ступени. ——— */

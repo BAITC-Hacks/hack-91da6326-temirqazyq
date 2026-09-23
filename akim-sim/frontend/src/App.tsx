@@ -238,12 +238,9 @@ export default function App() {
         </main>
       </div>
 
-      <footer className="small muted" style={{ marginTop: 40, paddingTop: 16, borderTop: '1px solid var(--hairline)' }}>
-        <div>Формула: {meta.rules.formula}</div>
-        <div className="dim" style={{ marginTop: 4 }}>
-          Все числа считает детерминированный движок и покрывают тесты. LLM получает готовую трассу расчёта и только
-          объясняет, критикует и советует — выдуманное число на экран попасть не может.
-        </div>
+      <footer className="small muted app-footer">
+        Все числа считает детерминированный движок и покрывают тесты. AI получает готовую трассу
+        расчёта и только объясняет, критикует и советует.
       </footer>
     </div>
   )

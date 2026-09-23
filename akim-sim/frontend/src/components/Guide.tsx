@@ -8,9 +8,7 @@ import { Hint } from './Viz'
    и готовые наборы под конкретную цель. LLM не участвует. */
 export function DistrictAdvice({ guide, meta }: { guide: Guide; meta: Meta }) {
   return (
-    <section className="panel mb">
-      <h2 className="mb">Куда смотреть</h2>
-      <div className="adv-grid">
+    <div className="adv-grid">
         {guide.districts.map((d) => {
           const m = d.best_move && meta.measures.find((x) => x.id === d.best_move!.measure_id)
           return (
@@ -39,8 +37,7 @@ export function DistrictAdvice({ guide, meta }: { guide: Guide; meta: Meta }) {
             </div>
           )
         })}
-      </div>
-    </section>
+    </div>
   )
 }
 
@@ -53,9 +50,7 @@ export function Bundles({
 }) {
   if (!bundles.length) return null
   return (
-    <section className="panel mb">
-      <h2 className="mb">Готовые наборы под цель</h2>
-      <div className="bundles">
+    <div className="bundles">
         {bundles.map((b) => (
           <div className="bundle" key={b.goal}>
             <b>{b.title}</b>
@@ -72,40 +67,74 @@ export function Bundles({
             <ul className="tiny muted">{b.human.map((h, i) => <li key={i}>{h}</li>)}</ul>
           </div>
         ))}
-      </div>
-    </section>
+    </div>
   )
 }
 
-/* Полоса шагов по направлениям: за раз показывается одно, чтобы не выбирать вслепую из четырнадцати. */
+/* Шаги по направлениям с кнопками «Назад / Далее»: видно, где ты сейчас,
+   сколько шагов всего и докуда дошёл. Выбор идёт по одному направлению за раз. */
 export function DirectionSteps({
   meta,
   active,
   counts,
   onPick,
 }: {
-  meta: Meta
-  active: string
-  counts: Record<string, number>
-  onPick: (dir: string) => void
+  meta: Meta;
+  active: string;
+  counts: Record<string, number>;
+  onPick: (dir: string) => void;
 }) {
-  const dirs = Object.entries(meta.directions)
+  const dirs = Object.entries(meta.directions);
+  const i = Math.max(0, dirs.findIndex(([d]) => d === active));
+  const [curDir, curTitle] = dirs[i];
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
   return (
-    <div className="dirsteps" role="tablist">
-      {dirs.map(([dir, title], i) => (
-        <button
-          key={dir}
-          role="tab"
-          aria-selected={dir === active}
-          className={`dirstep${dir === active ? ' active' : ''}${counts[dir] ? ' filled' : ''}`}
-          style={{ ['--dir' as string]: DIR_COLORS[dir] }}
-          onClick={() => onPick(dir)}
-        >
-          <i />
-          <span className="t">{i + 1}. {title}</span>
-          <span className="c">{counts[dir] ?? 0}/{meta.rules.max_per_direction}</span>
-        </button>
-      ))}
+    <div className="stepper">
+      <div className="stepper-rail">
+        {dirs.map(([dir, title], k) => (
+          <button
+            key={dir}
+            className={`srail${k === i ? ' active' : ''}${counts[dir] ? ' filled' : ''}`}
+            style={{ ['--dir' as string]: DIR_COLORS[dir] }}
+            onClick={() => onPick(dir)}
+            title={title}
+            aria-current={k === i ? 'step' : undefined}
+          >
+            <i />
+            <span className="k">{k + 1}</span>
+            <span className="nm">{title}</span>
+            {counts[dir] > 0 && <span className="cn">{counts[dir]}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="stepper-head">
+        <div>
+          <span className="eyebrow">
+            Шаг {i + 1} из {dirs.length} · выбрано {total} из {meta.rules.decisions_required}
+          </span>
+          <h3 className="stepper-title" style={{ ['--dir' as string]: DIR_COLORS[curDir] }}>
+            <i />
+            {curTitle}
+          </h3>
+          <span className="small muted">
+            {counts[curDir] ?? 0} из максимум {meta.rules.max_per_direction} в этом направлении
+          </span>
+        </div>
+        <div className="row">
+          <button className="small" disabled={i === 0} onClick={() => onPick(dirs[i - 1][0])}>
+            ← Назад
+          </button>
+          <button
+            className="small primary"
+            disabled={i === dirs.length - 1}
+            onClick={() => onPick(dirs[i + 1][0])}
+          >
+            Далее →
+          </button>
+        </div>
+      </div>
     </div>
-  )
+  );
 }

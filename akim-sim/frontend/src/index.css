@@ -79,7 +79,7 @@
   --s-xxl: 32px;
 
   font-family:
-    'SF Pro Display',
+    Inter,
     system-ui,
     -apple-system,
     'Segoe UI',
@@ -219,19 +219,25 @@ textarea:disabled {
 }
 
 /* ——— каркас ——— */
+/* На всю ширину экрана: max-width убран, поля растут вместе с окном. */
 .app {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: var(--s-lg) var(--s-xl) 80px;
+  width: 100%;
+  margin: 0;
+  padding: 0 clamp(16px, 3vw, 40px) 80px;
 }
+/* Шапка выделена подложкой и тенью, прилипает к верху и тянется во всю ширину. */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: var(--s-lg);
   flex-wrap: wrap;
-  padding: var(--s-md) 0 var(--s-lg);
-  margin-bottom: var(--s-xl);
-  border-bottom: 1px solid var(--hairline);
+  padding: var(--s-md) clamp(16px, 3vw, 40px);
+  margin: 0 calc(-1 * clamp(16px, 3vw, 40px)) var(--s-xl);
+  background: var(--canvas);
+  box-shadow: var(--lift-1);
 }
 .topbar .title {
   display: flex;
@@ -379,9 +385,13 @@ textarea:disabled {
   gap: var(--s-lg) var(--s-xl);
 }
 .howto > div:first-child {
-  flex: 1 1 380px;
+  flex: 1 1 420px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-md);
 }
+.howto > div:first-child > p { margin: 0; }
 .howto h2 {
   margin-bottom: var(--s-xs);
   font-size: 26px;
@@ -494,6 +504,8 @@ textarea:disabled {
   font-weight: 300;
   letter-spacing: -0.26px;
 }
+.kpi .lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-secondary); margin-top: var(--s-sm); }
+.kpi .sub { display: block; font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
 .kpi span {
   display: block;
   color: var(--ink-mute);
@@ -507,7 +519,6 @@ textarea:disabled {
   color: var(--ink-mute);
 }
 .kpi.hero {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   box-shadow: var(--lift-2);
 }
 .kpi.hero b {
@@ -516,6 +527,7 @@ textarea:disabled {
   letter-spacing: -0.96px;
   color: var(--ink);
 }
+.kpi .progress { margin-top: var(--s-md); }
 .progress {
   display: flex;
   flex-direction: column;
@@ -660,18 +672,44 @@ textarea:disabled {
 .bundle-nums { display: flex; gap: var(--s-md); flex-wrap: wrap; font-size: 11px; color: var(--ink-mute); }
 .bundle-nums b { display: block; font-size: var(--n-md); font-weight: 600; color: var(--ink-secondary); }
 
-/* ——— пошаговый режим ——— */
-.dirsteps { display: flex; gap: var(--s-sm); flex-wrap: wrap; margin-bottom: var(--s-lg); }
-.dirstep {
-  display: flex; align-items: center; gap: var(--s-sm);
-  background: var(--canvas); border: none; box-shadow: var(--lift-1);
-  border-radius: var(--r-md); padding: var(--s-sm) var(--s-md); color: var(--ink-mute);
+/* ——— пошаговый выбор по направлениям ——— */
+.stepper { background: var(--canvas); border-radius: var(--r-lg); box-shadow: var(--lift-1); padding: var(--s-lg); margin-bottom: var(--s-lg); }
+.stepper-rail { display: flex; align-items: center; gap: var(--s-sm); margin-bottom: var(--s-md); }
+.srail {
+  flex: 1 1 0;
+  min-width: 0; /* без этого подпись с nowrap не даёт кнопке сжиматься и рельса вылезает */ display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--canvas-sunk); border: none; box-shadow: none; border-radius: var(--r-pill);
+  padding: 6px 10px; color: var(--ink-mute); font-size: 12px;
 }
-.dirstep i { width: 8px; height: 8px; border-radius: 2px; background: var(--dir); flex: none; }
-.dirstep .t { font-size: 13px; font-weight: 500; }
-.dirstep .c { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink-faint); }
-.dirstep.active { color: var(--ink); box-shadow: var(--lift-2); outline: 2px solid var(--dir); outline-offset: -2px; }
-.dirstep.filled .c { color: var(--pos-ink); font-weight: 600; }
+.srail i { width: 8px; height: 8px; border-radius: 2px; background: var(--dir); flex: none; }
+.srail .k { font-weight: 600; font-variant-numeric: tabular-nums; }
+.srail .nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srail .cn { font-weight: 700; color: var(--pos-ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .srail .nm { display: none; } }
+.srail:hover:not(:disabled) { background: var(--canvas-soft); box-shadow: none; }
+.srail.active { background: var(--accent-wash); color: var(--accent-deep); }
+.srail.filled { color: var(--pos-ink); }
+.stepper-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-lg); flex-wrap: wrap; }
+.stepper-title { display: flex; align-items: center; gap: var(--s-sm); text-transform: none; letter-spacing: -0.22px; font-size: 22px; font-weight: 300; color: var(--ink); margin: 2px 0; }
+.stepper-title i { width: 10px; height: 10px; border-radius: 3px; background: var(--dir); flex: none; }
+
+/* ——— районы с очками вместо выпадающего списка ——— */
+.picks { display: flex; flex-direction: column; gap: var(--s-sm); width: 100%; }
+.picks-label { font-size: 11px; letter-spacing: 0.2px; color: var(--ink-mute); text-transform: uppercase; font-weight: 600; }
+.picks-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: var(--s-sm); }
+.pick {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: var(--canvas-sunk); border: none; box-shadow: none;
+  border-radius: var(--r-md); padding: 6px 10px; color: var(--ink-secondary);
+}
+.pick:hover:not(:disabled) { background: var(--accent-wash); box-shadow: none; }
+.pick .d { font-size: 12px; font-weight: 500; }
+.pick .v { font-size: 14px; font-weight: 700; color: var(--ink-mute); }
+.pick.good .v { color: var(--pos-ink); }
+
+/* ——— сворачиваемый блок ——— */
+.foldbox { margin-bottom: var(--s-lg); }
+.foldbody { background: var(--canvas); border-radius: 0 0 var(--r-lg) var(--r-lg); box-shadow: var(--lift-1); padding: var(--s-lg); margin-top: -4px; }
 
 /* ——— слоты решений ——— */
 .slots {

@@ -30,7 +30,7 @@ export const antdTheme: ThemeConfig = {
     borderRadius: 8,
     borderRadiusLG: 12,
     borderRadiusSM: 6,
-    fontFamily: "'SF Pro Display', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
     fontSize: 14,
     controlHeight: 36,
     boxShadow: 'rgba(0, 55, 112, 0.08) 0 1px 3px',

@@ -17,12 +17,13 @@ type Props = {
   customError: string
   onCustom: (text: string) => void
 }
-
-const IDEAS = [
-  'Зимой в Сарыарке прорвало теплотрассу, без отопления остались десятки домов, а на аварийный ремонт ушли деньги из бюджета.',
-  'В Нуру за полгода переехали тысячи семей: школы перешли на вторую смену, к врачам очереди на две недели.',
-  'Подрядчик сорвал сроки ЛРТ, стройплощадки перекрыли улицы Есиля, пробки выросли вдвое.',
-]
+/* Шаблон вместо трёх кнопок-примеров: он показывает, какие сведения нужны,
+   и при этом не подсовывает готовый ответ. */
+const TEMPLATE =
+  'Что случилось: \n' +
+  'Где (район или весь город): \n' +
+  'Что из-за этого стало хуже: \n' +
+  'Повлияло ли на бюджет: ';
 
 export default function EventPanel({
   meta, event, activeEventId, loading, hasPlan, onTrigger, onEnterWorld, onReset,
@@ -157,19 +158,18 @@ export default function EventPanel({
           rows={4}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Например: зимой в Сарыарке прорвало теплотрассу, без отопления остались десятки домов…"
+          placeholder={"Опишите, что случилось в городе. Например:\n«Зимой в Сарыарке прорвало теплотрассу, без отопления остались десятки домов, а на аварийный ремонт ушли деньги из бюджета»"}
           maxLength={1200}
           disabled={!hasPlan}
         />
         <div className="row spread mt">
-          <div className="row">
-            <span className="tiny dim">Не знаете, с чего начать:</span>
-            {IDEAS.map((idea, i) => (
-              <button key={i} className="small ghost" disabled={!hasPlan} onClick={() => setText(idea)}>
-                пример {i + 1}
-              </button>
-            ))}
-          </div>
+          <button
+            className="small ghost"
+            disabled={!hasPlan}
+            onClick={() => setText(TEMPLATE)}
+          >
+            Подставить шаблон
+          </button>
           <div className="row">
             <span className="tiny dim">{text.length}/1200</span>
             <button

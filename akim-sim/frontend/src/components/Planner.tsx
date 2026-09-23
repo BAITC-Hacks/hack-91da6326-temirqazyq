@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Popover, Segmented } from 'antd';
+import { Popover } from 'antd';
 import {
   api,
   type Decision,
@@ -17,7 +17,7 @@ import {
   plural,
   signed,
 } from '../lib';
-import { CodesLegend, Hint } from './Viz';
+import { CodesLegend, Fold, Hint } from './Viz';
 import { Bundles, DirectionSteps, DistrictAdvice } from './Guide';
 
 type Props = {
@@ -41,10 +41,12 @@ export default function Planner({
   onChange,
   onScore,
 }: Props) {
-  const [pick, setPick] = useState<Record<string, string>>({});
-  const [activeDirection, setActiveDirection] = useState('all');
-  const [mode, setMode] = useState<'all' | 'step'>('all');
+  const [activeDirection, setActiveDirection] = useState(
+    () => Object.keys(meta.directions)[0],
+  );
   const [guide, setGuide] = useState<Guide | null>(null);
+  const [openAdvice, setOpenAdvice] = useState(false);
+  const [openBundles, setOpenBundles] = useState(false);
 
   /* Подсказчик движка: на сколько сдвинет оценку каждый возможный следующий ход.
      Пересчитывается при каждом изменении набора — на сервере это десятки миллисекунд. */
@@ -115,7 +117,6 @@ export default function Planner({
      повторять под каждой из четырнадцати мер бессмысленно, оно видно по счётчику. */
   const blockReason = (
     mid: string,
-    scope: string,
     dir: string,
   ): { text: string; inline: boolean } | null => {
     if (blocked.has(mid))
@@ -130,8 +131,6 @@ export default function Planner({
         text: `Уже выбрано ${N} из ${N} — сначала уберите что-нибудь`,
         inline: false,
       };
-    if (scope === 'district' && !pick[mid])
-      return { text: 'Сначала выберите район', inline: true };
     return null;
   };
 
@@ -189,8 +188,26 @@ export default function Planner({
           </div>
         </section>
 
-        {guide && <DistrictAdvice guide={guide} meta={meta} />}
-        {guide && <Bundles bundles={guide.bundles} onTake={onChange} />}
+        {guide && (
+          <Fold
+            title="Слабые места города"
+            note="где просело сильнее всего и какой ход туда лучший"
+            open={openAdvice}
+            onToggle={() => setOpenAdvice((v) => !v)}
+          >
+            <DistrictAdvice guide={guide} meta={meta} />
+          </Fold>
+        )}
+        {guide && (
+          <Fold
+            title="Готовые наборы под цель"
+            note="пять решений одним кликом: максимум, слабейший район, дёшево"
+            open={openBundles}
+            onToggle={() => setOpenBundles((v) => !v)}
+          >
+            <Bundles bundles={guide.bundles} onTake={onChange} />
+          </Fold>
+        )}
 
         <div className="row spread mb">
           <div>
@@ -223,48 +240,12 @@ export default function Planner({
         </div>
 
 
-        <div className="row spread mb">
-          <Segmented
-            value={mode}
-            onChange={(v) => {
-              setMode(v as 'all' | 'step');
-              setActiveDirection(v === 'step' ? directionEntries[0][0] : 'all');
-            }}
-            options={[
-              { label: 'Все сразу', value: 'all' },
-              { label: 'Пошагово', value: 'step' },
-            ]}
-          />
-        </div>
-
-        {mode === 'step' ? (
-          <DirectionSteps
+                  <DirectionSteps
             meta={meta}
             active={activeDirection}
             counts={Object.fromEntries(directionEntries.map(([d]) => [d, perDir(d)]))}
             onPick={setActiveDirection}
           />
-        ) : (
-          <div className="filters mb" aria-label="Фильтр направлений">
-            <button
-              className={`small ${activeDirection === 'all' ? 'active' : ''}`}
-              onClick={() => setActiveDirection('all')}
-            >
-              Все
-            </button>
-            {directionEntries.map(([dir, title]) => (
-              <button
-                key={dir}
-                className={`small ${activeDirection === dir ? 'active' : ''}`}
-                style={{ ['--dir' as string]: DIR_COLORS[dir] }}
-                onClick={() => setActiveDirection(dir)}
-              >
-                <i className="swatch" />
-                {title}
-              </button>
-            ))}
-          </div>
-        )}
 
         {visibleDirections.map(([dir, title]) => {
           const used = perDir(dir);
@@ -286,7 +267,7 @@ export default function Planner({
                   .filter((m) => m.direction === dir)
                   .map((m, mi) => {
                     const sel = chosen.get(m.id);
-                    const reason = sel ? null : blockReason(m.id, m.scope, dir);
+                    const reason = sel ? null : blockReason(m.id, dir);
                     const isBlocked = blocked.has(m.id);
                     return (
                       <div
@@ -322,20 +303,17 @@ export default function Planner({
                           <span className="m-scope">{m.scope === 'city' ? 'весь город' : 'один район'}</span>
                         </div>
 
-                        {(() => {
-                          const o = sel ? null : deltaOf(m.id, m.scope, pick[m.id])
-                          if (sel) return null
-                          if (!o) {
-                            return m.scope === 'district' ? (
-                              <div className="m-delta empty">Выберите район — покажу, что изменится</div>
-                            ) : null
-                          }
+                        {!sel && m.scope === 'city' && (() => {
+                          const o = deltaOf(m.id, 'city');
+                          if (!o) return null;
                           return (
-                            <div className={`m-delta ${o.delta > 0 ? 'up' : o.delta < 0 ? 'down' : 'flat'}`}>
+                            <div
+                              className={`m-delta ${o.delta > 0 ? 'up' : o.delta < 0 ? 'down' : 'flat'}`}
+                            >
                               <b className="num">{signed(o.delta)}</b>
                               <span>к оценке города, если добавить сейчас</span>
                             </div>
-                          )
+                          );
                         })()}
 
                         <ul className="m-fx">
@@ -354,33 +332,52 @@ export default function Planner({
                               <span className="small muted" style={{ flex: 1 }}>
                                 В плане: {districtName(meta, sel.district_id)}
                               </span>
-                              <button className="small ghost" onClick={() => remove(decisions.indexOf(sel))}>
+                              <button
+                                className="small ghost"
+                                onClick={() => remove(decisions.indexOf(sel))}
+                              >
                                 Убрать
                               </button>
                             </>
-                          ) : (
-                            <>
-                              {m.scope === 'district' && !isBlocked && (
-                                <select
-                                  value={pick[m.id] ?? ''}
-                                  onChange={(e) => setPick({ ...pick, [m.id]: e.target.value })}
-                                  aria-label={`Район для ${m.id}`}
-                                >
-                                  <option value="">Район…</option>
-                                  {meta.districts.map((d) => (
-                                    <option key={d.id} value={d.id}>{d.name}</option>
-                                  ))}
-                                </select>
-                              )}
-                              <button
-                                className="small primary"
-                                disabled={!!reason}
-                                title={reason?.text}
-                                onClick={() => add(m.id, m.scope === 'district' ? pick[m.id] : null)}
-                              >
-                                Добавить
-                              </button>
-                            </>
+                          ) : m.scope === 'city' ? (
+                            <button
+                              className="small primary"
+                              disabled={!!reason}
+                              title={reason?.text}
+                              onClick={() => add(m.id, null)}
+                            >
+                              Добавить
+                            </button>
+                          ) : isBlocked ? null : (
+                            /* Вместо выпадающего списка — районы сразу с очками:
+                               видно, что даст каждый, до того как выбрать. */
+                            <div className="picks">
+                              <span className="picks-label">Куда поставить:</span>
+                              <div className="picks-row">
+                                {meta.districts.map((d) => {
+                                  const o = deltaOf(m.id, 'district', d.id);
+                                  const blocked =
+                                    full ||
+                                    perDir(dir) >= meta.rules.max_per_direction ||
+                                    m.cost > budget - cost ||
+                                    !!o?.breaks_rules;
+                                  return (
+                                    <button
+                                      key={d.id}
+                                      className={`pick${o && o.delta > 0 ? ' good' : ''}`}
+                                      disabled={blocked}
+                                      title={o?.breaks_rules ?? reason?.text}
+                                      onClick={() => add(m.id, d.id)}
+                                    >
+                                      <span className="d">{d.name}</span>
+                                      <span className="v num">
+                                        {o ? signed(o.delta) : '—'}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           )}
                         </div>
                         {reason?.inline && (
@@ -513,26 +510,6 @@ export default function Planner({
           </button>
         </div>
 
-        <h3 className="mt" data-tour="rules">
-          Правила, которые проверяет сервер
-        </h3>
-        <ul
-          className="tiny muted"
-          style={{ margin: '4px 0 0', paddingLeft: 18 }}
-        >
-          <li>Ровно {N} решений, каждая мера не более одного раза</li>
-          <li>Сумма стоимости ≤ {budget}</li>
-          <li>
-            Не более {meta.rules.max_per_direction} мер на одно направление
-          </li>
-          {meta.incompatibilities.map((inc) => (
-            <li key={`${inc.a}-${inc.b}`}>
-              {inc.a} и {inc.b} несовместимы
-              {inc.scope === 'same_district' ? ' в одном районе' : ''} —{' '}
-              {inc.reason.toLowerCase()}
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   );

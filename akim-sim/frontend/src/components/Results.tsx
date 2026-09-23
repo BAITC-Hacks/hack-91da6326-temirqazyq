@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Analysis, Meta, ScoreResult } from '../api'
 import { DIR_TITLE, districtName, heatFill, signed } from '../lib'
-import { CodesLegend, DivergingBars, Dumbbell, HeatLegend, Hint } from './Viz'
+import { CodesLegend, DivergingBars, Dumbbell, Fold, HeatLegend, Hint } from './Viz'
 
 export default function Results({ meta, result, analysis }: { meta: Meta; result: ScoreResult; analysis: Analysis | null }) {
   const oracle = analysis?.oracle
@@ -31,58 +31,86 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
       <div className="grid kpis">
         <div className="kpi hero">
           <b>{result.score}</b>
-          <span>
-            <Hint term="score">Оценка города</Hint> · база {result.base_score}{' '}
+          <span className="lbl">
+            <Hint term="score">Оценка города</Hint>
+          </span>
+          <span className="sub">
+            было {result.base_score} ·{' '}
             <span className={result.delta >= 0 ? 'pos' : 'neg'}>{signed(result.delta)}</span>
           </span>
           {oracle && (
-            <div className="progress mt" title={`Бездействие ${result.base_score} · вы ${result.score} · максимум ${oracle.best_score}`}>
+            <div className="progress">
               <div className="meter">
-                <i style={{ width: `${Math.max(0, Math.min(100, ((result.score - result.base_score) / (oracle.best_score - result.base_score)) * 100))}%` }} />
+                <i
+                  style={{
+                    width: `${Math.max(0, Math.min(100, ((result.score - result.base_score) / (oracle.best_score - result.base_score)) * 100))}%`,
+                  }}
+                />
               </div>
               <span className="tiny muted">
                 <Hint term="progress">
-                  {Math.round(((result.score - result.base_score) / (oracle.best_score - result.base_score)) * 100)}% пути
+                  {Math.round(((result.score - result.base_score) / (oracle.best_score - result.base_score)) * 100)}
+                  % пути
                 </Hint>{' '}
-                от бездействия ({result.base_score}) до максимума ({oracle.best_score})
+                до максимума {oracle.best_score}
               </span>
             </div>
           )}
         </div>
+
         <div className="kpi">
-          <b>{result.total_cost}<span className="unit"> / {result.budget}</span></b>
-          <span><Hint term="budget">Потрачено</Hint> · остаток {result.remaining}</span>
+          <b>
+            {result.total_cost}
+            <span className="unit">/ {result.budget}</span>
+          </b>
+          <span className="lbl">
+            <Hint term="budget">Потрачено</Hint>
+          </span>
+          <span className="sub">осталось {result.remaining}</span>
         </div>
+
         <div className="kpi">
           <b>{result.d_avg.toFixed(2)}</b>
-          <span><Hint term="davg">Средний балл · 70%</Hint> · было {result.base_d_avg.toFixed(2)}</span>
+          <span className="lbl">
+            <Hint term="davg">Средний балл районов</Hint>
+          </span>
+          <span className="sub">70% оценки · было {result.base_d_avg.toFixed(2)}</span>
         </div>
+
         <div className="kpi">
           <b>{result.d_min.toFixed(2)}</b>
-          <span><Hint term="dmin">Слабейший район · 30%</Hint> · {districtName(meta, result.d_min_district)}</span>
+          <span className="lbl">
+            <Hint term="dmin">Слабейший район</Hint>
+          </span>
+          <span className="sub">
+            30% оценки · {districtName(meta, result.d_min_district)}
+          </span>
         </div>
+
         <div className="kpi">
           <b className={result.n_crit ? 'neg' : 'pos'}>{result.n_crit}</b>
-          <span><Hint term="critical">Критических ячеек</Hint> · было {result.base_n_crit}</span>
+          <span className="lbl">
+            <Hint term="critical">Провальных показателей</Hint>
+          </span>
+          <span className="sub">
+            ниже {thr} · было {result.base_n_crit}
+          </span>
         </div>
+
         <div className="kpi">
-          {oracle ? (
-            <>
-              <b>{oracle.percentile}%</b>
-              <span>
-                <Hint term="percentile" side="right">Перцентиль</Hint> среди{' '}
-                {oracle.n_valid_sets.toLocaleString('ru')} наборов · до максимума {oracle.gap_to_best}
-              </span>
-            </>
-          ) : (
-            <>
-              <b className="dim">…</b>
-              <span><Hint term="oracle" side="right">Оракул</Hint> перебирает все наборы</span>
-            </>
-          )}
+          <b>{oracle ? `${oracle.percentile}%` : '…'}</b>
+          <span className="lbl">
+            <Hint term="percentile" side="right">
+              Лучше других планов
+            </Hint>
+          </span>
+          <span className="sub">
+            {oracle
+              ? `из ${oracle.n_valid_sets.toLocaleString('ru')} возможных`
+              : 'оракул перебирает наборы'}
+          </span>
         </div>
       </div>
-
 
       {/* Одна фраза вместо шести чисел: без неё непонятно, 56.54 — это успех или провал. */}
       <div className={`notice ${result.delta >= 0 ? 'good' : 'bad'}`}>
@@ -123,19 +151,13 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
         </div>
       </div>
 
-      <button
-        className="fold-toggle"
-        onClick={() => setDetails((v) => !v)}
-        aria-expanded={details}
+      <Fold
+        title="Подробности расчёта"
+        note="вклад каждой меры и показатели по районам"
+        open={details}
+        onToggle={() => setDetails((v) => !v)}
       >
-        <span className="caret">{details ? '▾' : '▸'}</span>
-        <span className="t">Подробности расчёта</span>
-        <span className="s">вклад каждой меры и показатели по районам</span>
-        <span className="act">{details ? 'свернуть' : 'раскрыть'}</span>
-      </button>
 
-      {details && (
-      <>
       <div className="panel">
         <h2>Вклад каждой меры в Score</h2>
         <p className="small muted mb">
@@ -254,8 +276,7 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
         <h3 className="mt">Что означают коды</h3>
         <CodesLegend meta={meta} />
       </div>
-      </>
-      )}
+      </Fold>
     </div>
   )
 }
