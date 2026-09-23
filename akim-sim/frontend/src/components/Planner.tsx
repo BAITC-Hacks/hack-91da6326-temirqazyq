@@ -161,9 +161,25 @@ export default function Planner({
             </p>
             <div className="row mt">
               <button
-                className="small"
+                className="small with-icon"
                 onClick={() => onChange(EXAMPLE_DECISIONS)}
               >
+                {/* стрелка в лоток — узнаваемый знак загрузки */}
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M8 2v7.5" />
+                  <path d="M4.75 6.5 8 9.75l3.25-3.25" />
+                  <path d="M2.5 11.5v1a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-1" />
+                </svg>
                 Загрузить пример из датасета
               </button>
               <span className="tiny dim">
@@ -303,18 +319,6 @@ export default function Planner({
                           <span className="m-scope">{m.scope === 'city' ? 'весь город' : 'один район'}</span>
                         </div>
 
-                        {!sel && m.scope === 'city' && (() => {
-                          const o = deltaOf(m.id, 'city');
-                          if (!o) return null;
-                          return (
-                            <div
-                              className={`m-delta ${o.delta > 0 ? 'up' : o.delta < 0 ? 'down' : 'flat'}`}
-                            >
-                              <b className="num">{signed(o.delta)}</b>
-                              <span>к оценке города, если добавить сейчас</span>
-                            </div>
-                          );
-                        })()}
 
                         <ul className="m-fx">
                           {Object.entries(m.effects).map(([k, v]) => (
@@ -339,23 +343,19 @@ export default function Planner({
                                 Убрать из плана
                               </button>
                             </>
-                          ) : m.scope === 'city' ? (
-                            <button
-                              className="small primary"
-                              disabled={!!reason}
-                              title={reason?.text}
-                              onClick={() => add(m.id, null)}
-                            >
-                              Добавить
-                            </button>
                           ) : isBlocked ? null : (
-                            /* Вместо выпадающего списка — районы сразу с очками:
-                               видно, что даст каждый, до того как выбрать. */
+                            /* Одинаково для всех мер: «Добавить» + варианты.
+                               У городской вариант один, у районной — пять районов.
+                               Раньше у городской была отдельная фиолетовая кнопка,
+                               и из-за этого казалось, что остальные добавить нельзя. */
                             <div className="picks">
-                              <span className="picks-label">Добавить — выберите район:</span>
+                              <span className="picks-label">Добавить:</span>
                               <div className="picks-row">
-                                {meta.districts.map((d) => {
-                                  const o = deltaOf(m.id, 'district', d.id);
+                                {(m.scope === 'city'
+                                  ? [{ id: null as string | null, name: 'Весь город' }]
+                                  : meta.districts.map((d) => ({ id: d.id as string | null, name: d.name }))
+                                ).map((target) => {
+                                  const o = deltaOf(m.id, m.scope, target.id ?? undefined);
                                   const blocked =
                                     full ||
                                     perDir(dir) >= meta.rules.max_per_direction ||
@@ -363,19 +363,17 @@ export default function Planner({
                                     !!o?.breaks_rules;
                                   return (
                                     <button
-                                      key={d.id}
-                                      className={`pick${o && o.delta > 0 ? ' good' : ''}`}
+                                      key={target.id ?? 'city'}
+                                      className={`pick${m.scope === 'city' ? ' wide' : ''}`}
                                       disabled={blocked}
                                       title={o?.breaks_rules ?? reason?.text}
-                                      onClick={() => add(m.id, d.id)}
+                                      onClick={() => add(m.id, target.id)}
                                     >
                                       <span className="d">
                                         <span className="plus">+</span>
-                                        {d.name}
+                                        {target.name}
                                       </span>
-                                      <span className="v num">
-                                        {o ? signed(o.delta) : '—'}
-                                      </span>
+                                      <span className="v num">{o ? signed(o.delta) : '—'}</span>
                                     </button>
                                   );
                                 })}

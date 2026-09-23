@@ -193,6 +193,8 @@ button.ghost:hover:not(:disabled) {
   box-shadow: none;
   color: var(--ink);
 }
+button.with-icon { display: inline-flex; align-items: center; gap: 7px; }
+button.with-icon svg { flex: none; opacity: 0.75; }
 button.small {
   padding: 4px 10px;
   font-size: 13px;
@@ -747,6 +749,7 @@ textarea:disabled {
   color: var(--ink-faint);
   box-shadow: none;
 }
+.pick.wide { grid-column: 1 / -1; flex-direction: row; align-items: baseline; justify-content: space-between; }
 .pick .d { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pick .plus { font-weight: 700; margin-right: 3px; }
 .pick .v { font-size: 14px; font-weight: 700; color: var(--pos-ink); font-variant-numeric: tabular-nums; }
