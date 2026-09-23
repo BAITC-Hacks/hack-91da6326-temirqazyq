@@ -62,6 +62,20 @@ select:focus, input:focus { outline: none; border-color: var(--accent-2); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 .panel.sticky { position: sticky; top: 12px; }
 .panel h2 { margin-bottom: 10px; }
+.howto { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; border-color: var(--accent); background: linear-gradient(110deg, #2a2a1f, var(--panel)); }
+.howto h2 { margin-bottom: 4px; font-size: 20px; }
+.howto p { margin: 0; }
+.eyebrow { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 5px !important; }
+.howto-steps { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.howto-steps span { color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+.howto-steps span.current { color: var(--text); border-color: var(--accent); }
+.howto-steps b { color: var(--accent); margin-right: 4px; }
+.catalog-head { margin: 4px 0 12px; }
+.catalog-head h2 { margin: 0; }
+.catalog-head p { margin: 2px 0 0; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filters button { background: transparent; color: var(--muted); }
+.filters button.active { background: var(--panel-2); border-color: var(--accent); color: var(--text); }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -137,3 +151,4 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--pane
 .error { color: var(--bad); font-size: 12px; }
 .recharts-default-tooltip { background: var(--panel) !important; border-color: var(--line) !important; border-radius: 8px; color: var(--text) !important; }
 .recharts-tooltip-label, .recharts-tooltip-item { color: var(--text) !important; }
+@media (max-width: 700px) { .howto { grid-template-columns: 1fr; } .howto-steps { justify-content: flex-start; } }
