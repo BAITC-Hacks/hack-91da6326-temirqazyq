@@ -164,10 +164,14 @@ export default function EventPanel({
         />
         <div className="row spread mt">
           <button
-            className="small ghost"
+            className="small with-icon"
             disabled={!hasPlan}
             onClick={() => setText(TEMPLATE)}
           >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="2" width="10" height="12" rx="1.5" />
+              <path d="M5.75 5.5h4.5M5.75 8h4.5M5.75 10.5h2.5" />
+            </svg>
             Подставить шаблон
           </button>
           <div className="row">

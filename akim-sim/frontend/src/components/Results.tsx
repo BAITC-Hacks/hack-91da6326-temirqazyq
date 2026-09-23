@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Tooltip } from 'antd'
 import type { Analysis, Meta, ScoreResult } from '../api'
 import { DIR_TITLE, districtName, heatFill, signed } from '../lib'
 import { CodesLegend, DivergingBars, Dumbbell, Fold, HeatLegend, Hint } from './Viz'
@@ -29,7 +30,7 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
   return (
     <div className="grid">
       <div className="grid kpis">
-        <div className="kpi hero">
+        <div className="kpi hero" data-tone="total">
           <b>{result.score}</b>
           <span className="lbl">
             <Hint term="score">Оценка города</Hint>
@@ -58,7 +59,7 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
           )}
         </div>
 
-        <div className="kpi">
+        <div className="kpi" data-tone="money">
           <b>
             {result.total_cost}
             <span className="unit">/ {result.budget}</span>
@@ -69,7 +70,8 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
           <span className="sub">осталось {result.remaining}</span>
         </div>
 
-        <div className="kpi">
+        {/* Две плитки одного тона: это ровно те слагаемые, из которых состоит оценка. */}
+        <div className="kpi" data-tone="part">
           <b>{result.d_avg.toFixed(2)}</b>
           <span className="lbl">
             <Hint term="davg">Средний балл районов</Hint>
@@ -77,7 +79,7 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
           <span className="sub">70% оценки · было {result.base_d_avg.toFixed(2)}</span>
         </div>
 
-        <div className="kpi">
+        <div className="kpi" data-tone="part">
           <b>{result.d_min.toFixed(2)}</b>
           <span className="lbl">
             <Hint term="dmin">Слабейший район</Hint>
@@ -87,7 +89,7 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
           </span>
         </div>
 
-        <div className="kpi">
+        <div className="kpi" data-tone={result.n_crit ? 'bad' : 'good'}>
           <b className={result.n_crit ? 'neg' : 'pos'}>{result.n_crit}</b>
           <span className="lbl">
             <Hint term="critical">Провальных показателей</Hint>
@@ -97,8 +99,13 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
           </span>
         </div>
 
-        <div className="kpi">
-          <b>{oracle ? `${oracle.percentile}%` : '…'}</b>
+        <div
+          className="kpi"
+          data-tone={!oracle ? 'part' : oracle.percentile >= 50 ? 'good' : 'warn'}
+        >
+          <b className={oracle && oracle.percentile >= 50 ? 'pos' : undefined}>
+            {oracle ? `${oracle.percentile}%` : '…'}
+          </b>
           <span className="lbl">
             <Hint term="percentile" side="right">
               Лучше других планов
@@ -183,7 +190,7 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
           <table className="heat">
             <thead>
               <tr>
-                <th>Район</th>
+                <th>Район · доля населения</th>
                 {meta.indicators.map((i) => (
                   <th key={i.code} className="code" title={`${i.name}. ${i.meaning}`}>{i.code}</th>
                 ))}
@@ -194,7 +201,12 @@ export default function Results({ meta, result, analysis }: { meta: Meta; result
               {result.districts.map((d) => (
                 <tr key={d.district_id}>
                   <td>
-                    {d.name} <span className="muted tiny">{Math.round(d.population_share * 100)}%</span>
+                    {d.name}{' '}
+                    <Tooltip
+                      title={`В районе живёт ${Math.round(d.population_share * 100)}% горожан. С этим весом его балл входит в средний по городу, а средний — это 70% оценки. Провал в большом районе стоит дороже, чем в маленьком.`}
+                    >
+                      <span className="share">{Math.round(d.population_share * 100)}%</span>
+                    </Tooltip>
                   </td>
                   {d.indicators.map((i) => {
                     const open = cell?.d === d.district_id && cell?.code === i.code

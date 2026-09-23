@@ -503,7 +503,11 @@ textarea:disabled {
 }
 
 /* ——— плитки показателей ——— */
+/* Цвет плитки не декоративный: полоса слева говорит о роли числа.
+   Акцент — итог; синий — слагаемые формулы (70% и 30%); серый — деньги;
+   зелёный/красный — там, где число действительно значит «хорошо» или «плохо». */
 .kpi {
+  border-left: 3px solid var(--tone, var(--hairline));
   background: var(--canvas);
   border-radius: var(--r-lg);
   padding: var(--s-lg);
@@ -532,8 +536,15 @@ textarea:disabled {
   font-weight: 400;
   color: var(--ink-mute);
 }
+.kpi[data-tone='total'] { --tone: var(--accent); }
+.kpi[data-tone='part'] { --tone: var(--after); }
+.kpi[data-tone='money'] { --tone: var(--ink-faint); }
+.kpi[data-tone='good'] { --tone: var(--good); }
+.kpi[data-tone='warn'] { --tone: var(--warning); }
+.kpi[data-tone='bad'] { --tone: var(--critical); }
 .kpi.hero {
   box-shadow: var(--lift-2);
+  background: linear-gradient(180deg, #fbfbff 0%, var(--canvas) 55%);
 }
 .kpi.hero b {
   font-size: var(--n-hero);
@@ -921,6 +932,7 @@ tr.picked td {
 }
 
 /* ——— тепловая карта ——— */
+.share { font-size: 12px; color: var(--ink-mute); border-bottom: 1px dashed var(--ink-faint); cursor: help; }
 .heat th.code {
   text-align: center;
 }

@@ -143,7 +143,7 @@ export default function App() {
       )}
       {tourOn && <Tour steps={PLANNER_TOUR} onDone={() => setTourOn(false)} />}
       <header className="topbar">
-        <h1>Аким на 5 часов</h1>
+        <h1>Qurultay</h1>
         {/* Бейдж события оставлен: он не справочный, а про состояние — предупреждает,
             что расчёты идут в мире после катастрофы, а не в базовом. */}
         {eventId && (
@@ -241,10 +241,6 @@ export default function App() {
         </main>
       </div>
 
-      <footer className="small muted app-footer">
-        Все числа считает детерминированный движок и покрывают тесты. AI получает готовую трассу
-        расчёта и только объясняет, критикует и советует.
-      </footer>
     </div>
   )
 }
