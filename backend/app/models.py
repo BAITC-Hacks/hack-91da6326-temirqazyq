@@ -106,6 +106,13 @@ class CityIndicators(BaseModel):
     delta: dict[str, float]
 
 
+class ScoreDecomposition(BaseModel):
+    average: float
+    weakest: float
+    critical: float
+    total: float
+
+
 class SimulationResult(BaseModel):
     valid: Literal[True] = True
     decisions: list[Decision]
@@ -120,3 +127,4 @@ class SimulationResult(BaseModel):
     category_deltas: dict[str, float]
     weakest_district: WeakestDistrictChange
     average_score: AverageScoreChange
+    score_decomposition: ScoreDecomposition

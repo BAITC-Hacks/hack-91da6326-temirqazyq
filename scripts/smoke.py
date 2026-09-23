@@ -11,10 +11,11 @@ def main() -> None:
     parser.add_argument("--base-url", default="http://127.0.0.1:3000")
     args = parser.parse_args()
     origin = args.base_url.rstrip("/")
+    session = {}
 
     def api(path: str, body=None, expected: int = 200):
         data = None if body is None else json.dumps(body).encode("utf-8")
-        request = Request(origin + "/api/" + path, data=data, headers={"Content-Type": "application/json"})
+        request = Request(origin + "/api/" + path, data=data, headers={"Content-Type": "application/json", **session})
         try:
             with urlopen(request, timeout=45) as response:
                 status, payload = response.status, json.load(response)
@@ -52,8 +53,11 @@ def main() -> None:
         {"measure_id": "M3", "district": "Есиль"},
     ]}, expected=422)
     assert not invalid["valid"] and "score" not in invalid
-    explanation = api("ai/explain", result)
-    assert explanation["summary"] and explanation["source"] in ("template", "openai")
+    session["X-Session-ID"] = api("sessions", {})["session_id"]
+    usage_before = api("ai/usage")
+    saved = api("scenarios", {**example, "name": "Контрольный сценарий", "provenance": "manual"})
+    assert api(f"scenarios/{saved['scenario_id']}")["result"]["score"] == result["score"]
+    assert api(f"scenarios/{saved['scenario_id']}/export")["saved"]
     alternatives = api("optimizer/search", {
         "focus_district": "Нура", "max_budget": 90, "reserve_budget": 10,
         "exclude_measures": ["M3"], "priority": "weakest_district", "limit": 3,
@@ -69,13 +73,15 @@ def main() -> None:
         "scenario_b": {"decisions": b["decisions"]},
     })
     assert len(comparison["category_comparison"]) == 5
-    assert comparison["explanation"]["summary"]
+    saved_b = api("scenarios", {"decisions": b["decisions"], "name": "Алгоритмический вариант", "provenance": "algorithmic"})
+    assert len(api("scenarios/compare", {"scenario_ids": [saved["scenario_id"], saved_b["scenario_id"]]})["scenarios"]) == 2
+    assert api("ai/usage")["api_calls"] == usage_before["api_calls"]
     print(json.dumps({
         "status": "passed", "base_score": baseline["score"]["after"],
         "demo_score": result["score"]["after"], "demo_budget": result["budget"]["spent"],
         "alternatives": len(alternatives["scenarios"]),
-        "advisor_source": explanation["source"], "search_ms": alternatives["search"]["elapsed_ms"],
-        "checked": "HTTP page, datasets, preview, final, conflicts, advisor, search, comparison via Next.js proxy",
+        "paid_api_calls": 0, "search_ms": alternatives["search"]["elapsed_ms"],
+        "checked": "HTTP page, datasets, preview, final, conflicts, search, comparison, session, save/load/export via Next.js proxy",
     }, indent=2))
 
 

@@ -23,8 +23,11 @@ import type {
   Scenario,
   SearchResult,
   SimulationResult,
+  SavedScenario,
+  SavedComparison,
 } from "@/lib/types";
 import { api, fmt, priorities, signed } from "@/lib/ui";
+import { validationHint } from "@/lib/feedback";
 import { ErrorBox, Spinner } from "./common";
 import { CompareModal, ResultsModal } from "./results";
 
@@ -47,9 +50,11 @@ export default function ScenarioLab({
   const [data, setData] = useState<SearchResult | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [validation, setValidation] = useState<string[]>([]);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareBusy, setCompareBusy] = useState(false);
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  const [persistedCompareIds, setPersistedCompareIds] = useState<string[]>([]);
   const [compareNames, setCompareNames] = useState<[string, string]>(["", ""]);
   const [view, setView] = useState<Scenario | null>(null);
   const [submittedPriority, setSubmittedPriority] =
@@ -81,7 +86,7 @@ export default function ScenarioLab({
   function nameOf(scenario: Scenario) {
     return scenario.id === "current"
       ? "Ваш сценарий"
-      : `${priorities[submittedPriority]} · ${(data?.scenarios.findIndex((s) => s.id === scenario.id) ?? 0) + 1}`;
+      : `Сценарий ${String.fromCharCode(65 + (data?.scenarios.findIndex((s) => s.id === scenario.id) ?? 0))}`;
   }
   async function generate() {
     compareController.current?.abort();
@@ -91,6 +96,7 @@ export default function ScenarioLab({
     searchController.current = controller;
     setPending(true);
     setError("");
+    setValidation([]);
     setCompareIds([]);
     setData(null);
     setSubmittedPriority(priority);
@@ -103,13 +109,13 @@ export default function ScenarioLab({
           reserve_budget: reserve,
           exclude_measures: excluded,
           priority,
-          limit: 4,
+          limit: 3,
         },
         controller.signal,
       );
       if (controller.signal.aborted) return;
       if ("valid" in response && !response.valid) {
-        setError(response.errors.map((e) => e.message).join(" "));
+        setValidation(response.errors.map(validationHint));
       } else setData(response as SearchResult);
     } catch (e) {
       if (!controller.signal.aborted)
@@ -134,21 +140,34 @@ export default function ScenarioLab({
     setCompareBusy(true);
     setError("");
     try {
-      const response = await api<Comparison | InvalidResult>(
-        "scenario/compare",
-        {
-          scenario_a: { decisions: selected[0].decisions },
-          scenario_b: { decisions: selected[1].decisions },
-        },
+      const rows = await Promise.all(
+        selected.map((scenario) =>
+          api<SavedScenario>(
+            "scenarios",
+            {
+              name: nameOf(scenario),
+              decisions: scenario.decisions,
+              provenance: scenario.id === "current" ? "manual" : "algorithmic",
+              constraints: null,
+              saved: false,
+            },
+            controller.signal,
+          ),
+        ),
+      );
+      const response = await api<SavedComparison>(
+        "scenarios/compare",
+        { scenario_ids: rows.map((row) => row.scenario_id) },
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      if ("valid" in response && !response.valid)
-        setError(response.errors.map((e) => e.message).join(" "));
-      else {
-        setCompareNames([nameOf(selected[0]), nameOf(selected[1])]);
-        setComparison(response as Comparison);
-      }
+      setPersistedCompareIds(rows.map((row) => row.scenario_id));
+      setCompareNames([nameOf(selected[0]), nameOf(selected[1])]);
+      setComparison({
+        scenario_a: response.scenarios[0].result,
+        scenario_b: response.scenarios[1].result,
+        category_comparison: response.category_comparison,
+      });
     } catch (e) {
       if (!controller.signal.aborted)
         setError(
@@ -283,6 +302,15 @@ export default function ScenarioLab({
       </aside>
       <div className="lab-results">
         {error && <ErrorBox text={error} retry={generate} />}
+        {validation.length > 0 && (
+          <div className="validation-errors" role="alert">
+            <div>
+              {validation.map((message, i) => (
+                <p key={i}>{message}</p>
+              ))}
+            </div>
+          </div>
+        )}
         {!data && !pending && (
           <section className="lab-empty">
             <div className="lab-orbit">
@@ -291,7 +319,7 @@ export default function ScenarioLab({
               <span className="orbit-dot two" />
               <span className="orbit-dot three" />
             </div>
-            <span className="eyebrow">FROM CONSTRAINTS TO POSSIBILITIES</span>
+            <span className="eyebrow">ОТ ОГРАНИЧЕНИЙ К ВАРИАНТАМ</span>
             <h2>У города больше одного пути.</h2>
             <p>
               Исследуйте стратегии с разными приоритетами.
@@ -313,7 +341,7 @@ export default function ScenarioLab({
             </div>
             <div className="lab-note">
               <Sparkles size={16} />
-              <span>Движок считает показатели. AI объясняет результат.</span>
+              <span>Движок считает показатели. ИИ объясняет результат.</span>
             </div>
           </section>
         )}
@@ -376,7 +404,7 @@ export default function ScenarioLab({
             {data.search.truncated && (
               <p className="search-note">
                 <Info size={14} />
-                Поиск завершён по лимиту. Показаны лучшие найденные варианты для
+                Поиск завершён по лимиту. Показаны найденные варианты для
                 выбранного приоритета, а не доказанный глобальный оптимум.
               </p>
             )}
@@ -395,10 +423,10 @@ export default function ScenarioLab({
         {data && currentScenario && (
           <div className="current-scenario panel">
             <div>
-              <span className="eyebrow">COMMAND CENTER</span>
+              <span className="eyebrow">ЦЕНТР УПРАВЛЕНИЯ</span>
               <h3>Добавить ваш сценарий к сравнению</h3>
               <p className="muted small">
-                Score {fmt(currentScenario.result.score.after)} · Бюджет{" "}
+                индекс {fmt(currentScenario.result.score.after)} · Бюджет{" "}
                 {currentScenario.result.budget.spent} / 100
               </p>
             </div>
@@ -455,6 +483,7 @@ export default function ScenarioLab({
           result={view.result}
           measures={measures}
           title={nameOf(view)}
+          provenance={view.id === "current" ? "manual" : "algorithmic"}
           onClose={() => setView(null)}
         />
       )}
@@ -462,6 +491,8 @@ export default function ScenarioLab({
         <CompareModal
           comparison={comparison}
           names={compareNames}
+          scenarioIds={persistedCompareIds}
+          measures={measures}
           onClose={() => setComparison(null)}
         />
       )}
@@ -506,7 +537,7 @@ function ScenarioCard({
           <ArrowUpRight size={15} />
           {signed(result.score.delta)}
         </span>
-        <small>Quality of Life</small>
+        <small>Качество жизни</small>
       </div>
       <div className="scenario-metrics">
         <div>
@@ -552,7 +583,7 @@ function ScenarioCard({
         </button>
       </div>
       <button className="button use-scenario" onClick={onUse}>
-        Применить в Command Center
+        Применить в Центр управления
         <ArrowRight size={15} />
       </button>
     </article>

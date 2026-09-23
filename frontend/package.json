@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build --webpack",
-    "start": "next start --hostname 0.0.0.0",
+    "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "format": "prettier --write src next.config.ts tailwind.config.ts postcss.config.mjs tsconfig.json package.json",
-    "format:check": "prettier --check src next.config.ts tailwind.config.ts postcss.config.mjs tsconfig.json package.json"
+    "test": "npm run test:api && npm run test:ui",
+    "test:api": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:ui": "vitest run",
+    "format": "prettier --write src tests next.config.ts tailwind.config.ts vitest.config.ts postcss.config.mjs tsconfig.json package.json",
+    "format:check": "prettier --check src tests next.config.ts tailwind.config.ts vitest.config.ts postcss.config.mjs tsconfig.json package.json"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -19,13 +21,18 @@
     "recharts": "^3.3.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^26.1.0",
     "postcss": "^8.4.49",
     "prettier": "^3.9.9",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
   }
 }

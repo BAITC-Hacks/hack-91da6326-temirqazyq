@@ -10,13 +10,13 @@ import {
   PolarRadiusAxis,
   Radar,
   RadarChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { categories, keys } from "@/lib/ui";
 import type { DistrictResult } from "@/lib/types";
+import { MeasuredChart } from "./measured-chart";
 
 export function DistrictRadar({ district }: { district: DistrictResult }) {
   const data = keys.map((key) => ({
@@ -35,13 +35,12 @@ export function DistrictRadar({ district }: { district: DistrictResult }) {
       ) / 2,
   }));
   return (
-    <div
+    <MeasuredChart
       className="radar-chart"
-      role="img"
-      aria-label="Радар пяти направлений: до и после решений"
+      label="Радар пяти направлений: до и после решений"
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} outerRadius="70%">
+      {({ width, height }) => (
+        <RadarChart width={width} height={height} data={data} outerRadius="70%">
           <PolarGrid stroke="#e2e8ed" />
           <PolarAngleAxis
             dataKey="name"
@@ -60,6 +59,7 @@ export function DistrictRadar({ district }: { district: DistrictResult }) {
             fill="#dce3eb"
             fillOpacity={0.35}
             strokeDasharray="4 3"
+            isAnimationActive={false}
           />
           <Radar
             name="После решений"
@@ -68,6 +68,7 @@ export function DistrictRadar({ district }: { district: DistrictResult }) {
             fill="#35bca0"
             fillOpacity={0.23}
             strokeWidth={2}
+            isAnimationActive={false}
           />
           <Tooltip
             formatter={(value) => Number(value).toFixed(2)}
@@ -78,8 +79,8 @@ export function DistrictRadar({ district }: { district: DistrictResult }) {
             }}
           />
         </RadarChart>
-      </ResponsiveContainer>
-    </div>
+      )}
+    </MeasuredChart>
   );
 }
 
@@ -93,13 +94,11 @@ export function ComparisonChart({
   height?: number;
 }) {
   return (
-    <div
-      style={{ height, width: "100%", minWidth: 0 }}
-      role="img"
-      aria-label={`График: ${labels.join(" и ")}`}
-    >
-      <ResponsiveContainer width="100%" height="100%">
+    <MeasuredChart height={height} label={`График: ${labels.join(" и ")}`}>
+      {({ width, height: measuredHeight }) => (
         <BarChart
+          width={width}
+          height={measuredHeight}
           data={data}
           margin={{ top: 15, right: 10, left: -24, bottom: 0 }}
           barGap={4}
@@ -136,6 +135,7 @@ export function ComparisonChart({
             fill="#bdc9d7"
             radius={[4, 4, 0, 0]}
             maxBarSize={32}
+            isAnimationActive={false}
           />
           <Bar
             name={labels[1]}
@@ -143,9 +143,10 @@ export function ComparisonChart({
             fill="#27ab91"
             radius={[4, 4, 0, 0]}
             maxBarSize={32}
+            isAnimationActive={false}
           />
         </BarChart>
-      </ResponsiveContainer>
-    </div>
+      )}
+    </MeasuredChart>
   );
 }

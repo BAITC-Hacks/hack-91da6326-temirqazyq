@@ -6,6 +6,8 @@ import {
   Building2,
 } from "lucide-react";
 import type { Category, Priority } from "./types";
+import { ensureSession, needsSession } from "./session.ts";
+import { publicErrorMessage, serviceUnavailable } from "./feedback.ts";
 
 export const categories: Record<
   Category,
@@ -90,29 +92,36 @@ export async function api<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(`/api/${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers:
-      body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-    cache: "no-store",
-  });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    if (
-      response.status === 422 &&
-      payload?.valid === false &&
-      Array.isArray(payload.errors) &&
-      body !== undefined &&
-      (path.startsWith("scenario/") || path === "optimizer/search")
-    )
-      return payload as T;
-    throw new Error(
-      typeof payload?.detail === "string"
-        ? payload.detail
-        : "Сервис временно недоступен. Проверьте подключение к backend и повторите попытку.",
-    );
+  try {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (needsSession(path)) headers["X-Session-ID"] = await ensureSession();
+    const response = await fetch(`/api/${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (
+        response.status === 422 &&
+        payload?.valid === false &&
+        Array.isArray(payload.errors) &&
+        body !== undefined &&
+        (path.startsWith("scenario/") || path === "optimizer/search")
+      )
+        return payload as T;
+      throw new Error(serviceUnavailable);
+    }
+    if (payload === null) throw new Error(serviceUnavailable);
+    return payload as T;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    // Next forwards this fixed diagnostic to the development terminal. Never
+    // log response bodies, credentials, session IDs or the user's request.
+    console.warn("[client] REQUEST_UNAVAILABLE");
+    throw new Error(publicErrorMessage(error));
   }
-  return payload as T;
 }

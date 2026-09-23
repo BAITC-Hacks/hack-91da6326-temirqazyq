@@ -3,12 +3,19 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       DATA_DIR: /data
+      DB_PATH: /app/state/akim.sqlite3
+      AI_PRICING_PATH: /data/ai_pricing.json
+    volumes:
+      - akim_state:/app/state
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
@@ -22,7 +29,9 @@ services:
     environment:
       BACKEND_URL: http://backend:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       backend:
         condition: service_healthy
+volumes:
+  akim_state:

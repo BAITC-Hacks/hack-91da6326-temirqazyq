@@ -45,6 +45,13 @@ def calculate(
     after = evaluate(normalized, repository)
     budget = repository.config["budget"]
     spent = sum(repository.measure_by_id[decision.measure_id].cost for decision in normalized)
+    coefficients = repository.config["score_coefficients"]
+    decomposition = {
+        "average": coefficients["average"] * (after["average_score"] - before["average_score"]),
+        "weakest": coefficients["weakest"] * (after["weakest"] - before["weakest"]),
+        "critical": coefficients["critical_penalty"] * (before["critical_count"] - after["critical_count"]),
+        "total": after["score"] - before["score"],
+    }
     return {
         "valid": True,
         "decisions": [decision.model_dump() for decision in normalized],
@@ -85,6 +92,7 @@ def calculate(
             "before": before["weakest_district"], "after": after["weakest_district"],
         },
         "average_score": {"before": before["average_score"], "after": after["average_score"]},
+        "score_decomposition": decomposition,
     }
 
 

@@ -1,11 +1,17 @@
 from typing import Any
+from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from app.ai.advisor import explain
 from app.ai.schemas import Explanation
+from app.ai.agent import RunRequest
+from app.ai.tools import dataset_version
+from app.ai.contracts import Constraints
+from app.ai.presentation import public_run
+from app.api.workspace import manager, session_id
 from app.models import District, Measure, ScenarioRequest, SimulationResult, ValidationResult
 from app.optimizer.search import SearchRequest, search
 from app.repository import load_repository
@@ -31,7 +37,7 @@ class CompareResult(BaseModel):
     scenario_a: SimulationResult
     scenario_b: SimulationResult
     category_comparison: list[CategoryComparison]
-    explanation: Explanation
+    explanation: Explanation | None = None
 
 
 def checked_result(request: ScenarioRequest, *, preview: bool = False) -> dict[str, Any] | JSONResponse:
@@ -70,7 +76,7 @@ def simulate_scenario(request: ScenarioRequest) -> Any:
 
 
 @router.post("/scenario/compare", response_model=CompareResult, tags=["Simulation"])
-def compare_scenarios(request: CompareRequest) -> Any:
+def compare_scenarios(request: CompareRequest, http_request: Request) -> Any:
     a = checked_result(request.scenario_a)
     if isinstance(a, JSONResponse):
         return a
@@ -84,7 +90,7 @@ def compare_scenarios(request: CompareRequest) -> Any:
             {"category": category, "scenario_a": a["category_deltas"][category], "scenario_b": b["category_deltas"][category]}
             for category in a["category_deltas"]
         ],
-        "explanation": explain(a, b),
+        "explanation": explain(a, b) if manager(http_request).settings.ai_allow_template_fallback else None,
     }
 
 
@@ -93,11 +99,24 @@ def search_scenarios(request: SearchRequest) -> dict[str, Any]:
     return search(request)
 
 
-@router.post("/ai/explain", response_model=Explanation, tags=["AI Advisor"])
-def explain_scenario(request: SimulationResult) -> Any:
+@router.post("/ai/explain", tags=["AI Advisor"], deprecated=True)
+async def explain_scenario(request: SimulationResult, http_request: Request, sid: str = Depends(session_id)) -> Any:
     # Ignore client-supplied metrics: only server-computed facts reach the advisor.
-    result = checked_result(ScenarioRequest(decisions=request.decisions), preview=True)
+    result = checked_result(ScenarioRequest(decisions=request.decisions))
     if isinstance(result, JSONResponse):
         return result
-    return explain(result)
+    mgr = manager(http_request)
+    row = mgr.store.save_scenario(sid, decisions=result["decisions"], result=result,
+        provenance="manual", constraints=Constraints().model_dump(), dataset_version=dataset_version())
+    run = mgr.start(sid, RunRequest(operation="explain", scenario_ids=[row["scenario_id"]], request_id=uuid4().hex))
+    task = mgr.tasks.get(run["run_id"])
+    if task:
+        await task
+    run = public_run(mgr.store.get_run(sid, run["run_id"]))
+    value = run.get("explanation")
+    if not value:
+        return JSONResponse(status_code=502, content={"valid": False, "errors": [run.get("error") or {"code": "NO_EXPLANATION", "message": run["message"]}], "metadata": run["metadata"]})
+    return {"summary": value["summary"], "strengths": value["observations"], "risks": value["remaining_issues"],
+            "tradeoffs": value["tradeoffs"], "recommendations": value["limitations"], "source": value["source"],
+            "run_id": run["run_id"], "metadata": run["metadata"]}
 

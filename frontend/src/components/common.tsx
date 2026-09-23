@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, LoaderCircle, Sparkles, X } from "lucide-react";
 import type { Advisor } from "@/lib/types";
+import { publicErrorMessage } from "@/lib/feedback";
 
 export function Spinner({ text = "Рассчитываем…" }: { text?: string }) {
   return (
@@ -22,7 +24,7 @@ export function ErrorBox({
   return (
     <div className="error-box" role="alert">
       <AlertTriangle size={17} />
-      <span>{text}</span>
+      <span>{publicErrorMessage(text)}</span>
       {retry && <button onClick={retry}>Повторить</button>}
     </div>
   );
@@ -41,10 +43,15 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
+    setMounted(true);
+  }, []);
+  useEffect(() => {
+    if (!mounted) return;
     const previous = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -81,8 +88,9 @@ export function Modal({
       document.removeEventListener("keydown", handler);
       previous?.focus();
     };
-  }, []);
-  return (
+  }, [mounted]);
+  if (!mounted) return null;
+  return createPortal(
     <div
       className="modal-backdrop"
       onClick={(event) => {
@@ -112,7 +120,8 @@ export function Modal({
         </header>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -134,7 +143,7 @@ export function AdvisorContent({
       <div className="advisor-source">
         <Sparkles size={12} />
         {advisor.source === "openai"
-          ? "AI-анализ · OpenAI"
+          ? "ИИ-анализ · OpenAI"
           : "Аналитик · шаблонное объяснение"}
       </div>
       <p>{advisor.summary}</p>

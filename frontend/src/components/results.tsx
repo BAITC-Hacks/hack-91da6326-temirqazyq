@@ -1,70 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ArrowUpRight,
-  CheckCircle2,
-  Download,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Zap } from "lucide-react";
 import type {
-  Advisor,
   Comparison,
   Measure,
   SimulationResult,
+  SavedScenario,
 } from "@/lib/types";
-import { api, categories, fmt, indicatorNames, keys, signed } from "@/lib/ui";
-import { AdvisorContent, ErrorBox, Modal, Spinner } from "./common";
+import { categories, fmt, indicatorNames, keys, signed } from "@/lib/ui";
+import { Modal } from "./common";
 import { ComparisonChart } from "./charts";
+import { AIExplanation } from "./ai-feedback";
+import { ScenarioActions } from "./scenario-library";
+import ScoreWaterfall from "./score-waterfall";
 
 export function ResultsModal({
   result,
   measures,
   title = "Будущее города в цифрах",
+  scenario,
+  provenance = "manual",
   onClose,
 }: {
   result: SimulationResult;
   measures: Measure[];
   title?: string;
+  scenario?: SavedScenario;
+  provenance?: "manual" | "algorithmic";
   onClose: () => void;
 }) {
-  const [advisor, setAdvisor] = useState<Advisor | null>(null);
-  const [error, setError] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setError("");
-    setAdvisor(null);
-    api<Advisor>("ai/explain", result, controller.signal)
-      .then((response) => {
-        if (!controller.signal.aborted) setAdvisor(response);
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(e.message);
-      });
-    return () => controller.abort();
-  }, [result, attempt]);
-  function download() {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(result, null, 2)], { type: "application/json" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "akim-ai-scenario.json";
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
   return (
     <Modal
       title={title}
-      eyebrow="SCENARIO REPORT / 8 КВАРТАЛОВ"
+      eyebrow="ОТЧЁТ ПО СЦЕНАРИЮ / 8 КВАРТАЛОВ"
       onClose={onClose}
       wide
     >
       <div className="report-hero">
         <div>
-          <span className="report-label">QUALITY OF LIFE</span>
+          <span className="report-label">КАЧЕСТВО ЖИЗНИ</span>
           <div className="report-score">
             <span>{fmt(result.score.before)}</span>
             <ArrowUpRight size={26} />
@@ -108,6 +82,7 @@ export function ResultsModal({
           <span>Дополнительные эффекты решений</span>
         </div>
       </div>
+      <ScoreWaterfall result={result} />
       <div className="report-grid">
         <section className="panel">
           <h3>Каждый район имеет значение</h3>
@@ -131,8 +106,10 @@ export function ResultsModal({
           </div>
         </section>
         <section className="panel">
-          <h3>Вклад каждого решения</h3>
-          <p className="muted small">Разница Score при исключении одной меры</p>
+          <h3>Изменение при исключении меры</h3>
+          <p className="muted small">
+            Индекс полного сценария минус индекс без одной меры
+          </p>
           <div className="contribution-list">
             {[...result.measure_contributions]
               .sort((a, b) => b.contribution - a.contribution)
@@ -158,7 +135,8 @@ export function ResultsModal({
               ))}
           </div>
           <p className="footnote">
-            Вклады могут пересекаться из-за синергий и штрафов; их сумма не
+            Положительное значение означает потерю индекса при исключении меры.
+            Изменения могут пересекаться из-за синергий и штрафов; их сумма не
             обязана равняться общему приросту.
           </p>
         </section>
@@ -249,26 +227,26 @@ export function ResultsModal({
         </section>
       </div>
       <section className="panel report-advisor">
-        <h3>
-          <Sparkles size={18} /> Объяснение советника
-        </h3>
-        {error ? (
-          <ErrorBox text={error} retry={() => setAttempt((a) => a + 1)} />
-        ) : advisor ? (
-          <AdvisorContent advisor={advisor} />
-        ) : (
-          <Spinner text="Готовим объяснение результатов…" />
-        )}
+        <AIExplanation
+          key={JSON.stringify([scenario?.scenario_id, result])}
+          results={[result]}
+          scenarioIds={scenario ? [scenario.scenario_id] : undefined}
+          provenance={provenance}
+          constraints={scenario?.constraints}
+        />
       </section>
+      <ScenarioActions
+        key={JSON.stringify([scenario?.scenario_id, result])}
+        result={result}
+        initialScenario={scenario}
+        provenance={provenance}
+        defaultName={title}
+      />
       <div className="modal-actions">
         <p className="muted small">
           Условная модель Астаны. Показатели не являются реальной городской
           статистикой.
         </p>
-        <button className="button secondary" onClick={download}>
-          <Download size={16} />
-          Скачать JSON
-        </button>
       </div>
     </Modal>
   );
@@ -277,10 +255,14 @@ export function ResultsModal({
 export function CompareModal({
   comparison,
   names,
+  scenarioIds,
+  measures = [],
   onClose,
 }: {
   comparison: Comparison;
   names: [string, string];
+  scenarioIds?: string[];
+  measures?: Measure[];
   onClose: () => void;
 }) {
   const a = comparison.scenario_a,
@@ -288,8 +270,8 @@ export function CompareModal({
   const rows = [
     ["Бюджет", `${a.budget.spent} / 100`, `${b.budget.spent} / 100`],
     ["Резерв", String(a.budget.remaining), String(b.budget.remaining)],
-    ["Quality of Life", fmt(a.score.after), fmt(b.score.after)],
-    ["Прирост Score", signed(a.score.delta), signed(b.score.delta)],
+    ["Качество жизни", fmt(a.score.after), fmt(b.score.after)],
+    ["Прирост индекса", signed(a.score.delta), signed(b.score.delta)],
     [
       "Слабейший район",
       `${a.weakest_district.after.name} · ${fmt(a.weakest_district.after.score)}`,
@@ -318,7 +300,7 @@ export function CompareModal({
   return (
     <Modal
       title="Два пути развития города"
-      eyebrow="SCENARIO COMPARE"
+      eyebrow="СРАВНЕНИЕ СЦЕНАРИЕВ"
       onClose={onClose}
       wide
     >
@@ -329,6 +311,48 @@ export function CompareModal({
         <span>
           <i />B · {names[1]}
         </span>
+      </div>
+      <div className="report-grid">
+        {[a, b].map((result, i) => (
+          <section className="panel compare-decisions" key={i}>
+            <h3>Сценарий {i ? "B" : "A"}: решения</h3>
+            <ul>
+              {result.decisions.map((d) => (
+                <li key={d.measure_id}>
+                  <b>{d.measure_id}</b>{" "}
+                  {measures.find((m) => m.id === d.measure_id)?.name ||
+                    "Мероприятие"}
+                  <span>{d.district || "Весь город"}</span>
+                </li>
+              ))}
+            </ul>
+            <h3>Индексы районов до / после</h3>
+            {Object.entries(result.districts).map(([name, d]) => (
+              <div className="critical-row" key={name}>
+                <span>{name}</span>
+                <b>
+                  {fmt(d.score_before)} → {fmt(d.score_after)}
+                </b>
+              </div>
+            ))}
+            <h3>Критические значения</h3>
+            {result.critical_after.length ? (
+              result.critical_after.map((c) => (
+                <div
+                  className="critical-row"
+                  key={`${c.district}-${c.indicator}`}
+                >
+                  <span>
+                    {c.district} · {indicatorNames[c.indicator]}
+                  </span>
+                  <b>{fmt(c.value)}</b>
+                </div>
+              ))
+            ) : (
+              <p className="muted small">Нет значений ниже 40.</p>
+            )}
+          </section>
+        ))}
       </div>
       <div className="report-grid">
         <section className="panel">
@@ -377,11 +401,47 @@ export function CompareModal({
         </table>
       </div>
       <section className="panel report-advisor">
-        <h3>
-          <Sparkles size={18} /> Что меняется при выборе стратегии
-        </h3>
-        <AdvisorContent advisor={comparison.explanation} />
+        <AIExplanation
+          key={JSON.stringify([scenarioIds, a, b])}
+          results={[a, b]}
+          scenarioIds={scenarioIds}
+        />
       </section>
+      <details className="panel district-compare-details">
+        <summary>Все показатели районов: до и после решений</summary>
+        <div className="table-scroll">
+          <table className="compare-table">
+            <thead>
+              <tr>
+                <th>Район / показатель</th>
+                <th>Исходно</th>
+                <th>Сценарий A</th>
+                <th>Сценарий B</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.keys(a.districts).flatMap((name) =>
+                Object.entries(indicatorNames).map(([key, label]) => (
+                  <tr key={`${name}-${key}`}>
+                    <td>
+                      {name} · {label}
+                    </td>
+                    <td>{fmt(a.districts[name].indicators_before[key])}</td>
+                    <td>{fmt(a.districts[name].indicators_after[key])}</td>
+                    <td>{fmt(b.districts[name].indicators_after[key])}</td>
+                  </tr>
+                )),
+              )}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <button
+        className="button secondary no-print"
+        onClick={() => window.print()}
+      >
+        Печатный отчёт сравнения
+      </button>
     </Modal>
   );
 }

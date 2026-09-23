@@ -8,8 +8,10 @@ from app.main import app
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     with TestClient(app) as test_client:
+        sid = test_client.post("/api/sessions").json()["session_id"]
+        test_client.headers["X-Session-ID"] = sid
         yield test_client
 
 

@@ -40,8 +40,9 @@ import type {
 import { api, categories, fmt, indicatorNames, keys, signed } from "@/lib/ui";
 import { DistrictRadar } from "./charts";
 import { ErrorBox, Modal, Spinner } from "./common";
+import { validationHint } from "@/lib/feedback";
 import { ResultsModal } from "./results";
-import ScenarioLab from "./scenario-lab";
+import AIWorkspace from "./ai-workspace";
 
 const demoDecisions: Decision[] = [
   { measure_id: "M7", district: "Нура" },
@@ -72,6 +73,9 @@ export default function Dashboard() {
   const [previewAttempt, setPreviewAttempt] = useState(0);
   const [finalBusy, setFinalBusy] = useState(false);
   const [finalResult, setFinalResult] = useState<SimulationResult | null>(null);
+  const [pendingDecisions, setPendingDecisions] = useState<Decision[] | null>(
+    null,
+  );
   const [filter, setFilter] = useState<Category | "all">("all");
   const [districtChoices, setDistrictChoices] = useState<
     Record<string, string>
@@ -254,8 +258,8 @@ export default function Dashboard() {
             className={tab === "command" ? "active" : ""}
             aria-pressed={tab === "command"}
             onClick={() => setTab("command")}
-            aria-label="Command Center"
-            title="Command Center"
+            aria-label="Центр управления"
+            title="Центр управления"
           >
             <LayoutDashboard size={21} />
             <span>Центр</span>
@@ -264,11 +268,11 @@ export default function Dashboard() {
             className={tab === "lab" ? "active" : ""}
             aria-pressed={tab === "lab"}
             onClick={() => setTab("lab")}
-            aria-label="Scenario Lab"
-            title="Scenario Lab"
+            aria-label="Лаборатория сценариев"
+            title="Лаборатория сценариев"
           >
             <FlaskConical size={22} />
-            <span>Lab</span>
+            <span>ИИ</span>
           </button>
         </div>
         <div className="sidebar-bottom">
@@ -290,7 +294,7 @@ export default function Dashboard() {
             <span>
               ASTANA<span className="wordmark-dot">.</span>
             </span>
-            <small>AI CITY COMMAND CENTER</small>
+            <small>ГОРОДСКОЙ ЦЕНТР УПРАВЛЕНИЯ</small>
           </div>
           <div className="header-status">
             <span className={`status-dot ${base ? "connected" : ""}`} />
@@ -330,18 +334,15 @@ export default function Dashboard() {
             <div className="heading-actions">
               <span className="demo-badge">
                 <span />
-                HACKATHON EDITION
+                ДЕМОНСТРАЦИОННАЯ ВЕРСИЯ
               </span>
               {tab === "command" && (
                 <button
                   className="button secondary"
                   disabled={!base}
                   onClick={() => {
-                    updateDecisions(demoDecisions);
+                    setPendingDecisions(demoDecisions);
                     setSelectedDistrict("Нура");
-                    setToast(
-                      "Демо-сценарий загружен: пять решений, включая синергию M10 + M12.",
-                    );
                   }}
                 >
                   <Sparkles size={15} />
@@ -357,7 +358,7 @@ export default function Dashboard() {
               onClick={() => setTab("command")}
             >
               <LayoutDashboard size={16} />
-              Command Center<span>01</span>
+              Центр управления<span>01</span>
             </button>
             <button
               className={tab === "lab" ? "active" : ""}
@@ -365,7 +366,7 @@ export default function Dashboard() {
               onClick={() => setTab("lab")}
             >
               <FlaskConical size={17} />
-              Scenario Lab<span>02</span>
+              Лаборатория сценариев<span>02</span>
             </button>
             <span className="tabs-note">
               <ShieldCheck size={14} />
@@ -394,7 +395,7 @@ export default function Dashboard() {
                 <div className="metric-grid">
                   <section className="metric-card score-metric">
                     <div className="metric-title">
-                      <span>QUALITY OF LIFE</span>
+                      <span>КАЧЕСТВО ЖИЗНИ</span>
                       <Activity size={16} />
                     </div>
                     <div className="metric-main">
@@ -414,7 +415,7 @@ export default function Dashboard() {
                     </div>
                     <div className="metric-footer">
                       <span>
-                        Базовый Score <b>{fmt(base.score.before)}</b>
+                        Базовый индекс <b>{fmt(base.score.before)}</b>
                       </span>
                       <span>из 100</span>
                     </div>
@@ -506,11 +507,9 @@ export default function Dashboard() {
                   <div className="validation-errors" role="alert">
                     <TriangleAlert size={18} />
                     <div>
-                      <strong>Сценарий недопустим — Score не рассчитан</strong>
+                      <strong>Сценарий недопустим — индекс не рассчитан</strong>
                       {previewErrors.map((e, i) => (
-                        <p key={`${e.code}-${i}`}>
-                          {e.message} <code>{e.code}</code>
-                        </p>
+                        <p key={`${e.code}-${i}`}>{validationHint(e)}</p>
                       ))}
                       <small>
                         Ниже отображены исходные показатели районов.
@@ -645,6 +644,10 @@ export default function Dashboard() {
                         <div className="district-analysis">
                           <div>
                             <DistrictRadar district={district} />
+                            <p className="radar-formula">
+                              Каждое направление: среднее двух показателей, (I₁
+                              + I₂) / 2. Шкала 0–100.
+                            </p>
                             <div className="chart-legend">
                               <span>
                                 <i />
@@ -672,7 +675,7 @@ export default function Dashboard() {
                               {Object.values(district.indicators_after).some(
                                 (v) => v < 40,
                               )
-                                ? "Показатели ниже 40 снижают итоговый Score города. Начните с уязвимых направлений."
+                                ? "Показатели ниже 40 снижают итоговый индекс города. Начните с уязвимых направлений."
                                 : "Все показатели выше критического порога. Сравнивайте направления, чтобы распределить ресурсы."}
                             </p>
                             <div className="district-summary-bottom">
@@ -885,9 +888,9 @@ export default function Dashboard() {
                       <div className="advisor-header">
                         <span>
                           <Sparkles size={17} />
-                          Советник
+                          Подсказка по расчёту
                         </span>
-                        <span className="tiny-pill">INSIGHTS</span>
+                        <span className="tiny-pill">АНАЛИЗ</span>
                       </div>
                       <h3>
                         {preview && preview.critical_after.length === 0
@@ -901,7 +904,7 @@ export default function Dashboard() {
                             <b>{preview.weakest_district.after.name}</b>, индекс{" "}
                             <b>{fmt(preview.weakest_district.after.score)}</b>.{" "}
                             {preview.critical_after.length
-                              ? "Улучшение критических показателей влияет и на район, и на итоговый Score."
+                              ? "Улучшение критических показателей влияет и на район, и на итоговый индекс."
                               : "Теперь оцените баланс направлений и оставшийся бюджет."}
                           </>
                         ) : (
@@ -923,7 +926,7 @@ export default function Dashboard() {
                         <ArrowUpRight size={15} />
                       </button>
                       <small>
-                        Расчёты — модель. Объяснение — AI или шаблон.
+                        Подсказка движка, без вызова облачной модели.
                       </small>
                     </section>
                   </aside>
@@ -975,7 +978,7 @@ export default function Dashboard() {
                 <section className="catalog" ref={catalog}>
                   <div className="section-heading catalog-heading">
                     <div>
-                      <div className="eyebrow">TOOLS FOR CHANGE</div>
+                      <div className="eyebrow">ИНСТРУМЕНТЫ РАЗВИТИЯ</div>
                       <h2>
                         Решения для города{" "}
                         <span className="count-badge">{measures.length}</span>
@@ -1154,18 +1157,12 @@ export default function Dashboard() {
                 </section>
               </div>
               <div hidden={tab !== "lab"}>
-                <ScenarioLab
+                <AIWorkspace
                   districts={districts}
                   measures={measures}
                   current={preview}
-                  onUse={(next) => {
-                    updateDecisions(next);
-                    setTab("command");
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                    setToast(
-                      "Сценарий применён. Вы можете изменить решения или открыть итоговый отчёт.",
-                    );
-                  }}
+                  currentDecisions={decisions}
+                  onUse={setPendingDecisions}
                 />
               </div>
             </>
@@ -1216,7 +1213,7 @@ export default function Dashboard() {
             </p>
             <h4>Как считается качество жизни</h4>
             <div className="formula">
-              Score = 0,7 × средний индекс
+              Итоговый индекс = 0,7 × средний индекс
               <br />+ 0,3 × индекс слабейшего района
               <br />− число критических показателей
             </div>
@@ -1231,12 +1228,14 @@ export default function Dashboard() {
               прибавляются полностью. Любой показатель ограничен диапазоном
               0–100.
             </p>
-            <h4>Роль AI</h4>
+            <h4>Роль ИИ</h4>
             <p>
               Все числа и допустимость сценария рассчитывает детерминированный
-              движок. Советник объясняет готовый результат; без API-ключа
-              работает шаблонное объяснение. Scenario Lab использует
-              ограниченный перебор с отсечениями.
+              движок. В режиме ИИ модель предлагает черновики и объясняет
+              проверенные результаты. Облачные запросы запускаются только
+              отдельным действием. Шаблонное объяснение доступно лишь при явно
+              включённой настройке и отмечается в результате. Алгоритмический
+              поиск — отдельный режим с ограниченным перебором.
             </p>
             <div className="about-disclaimer">
               <Info size={17} />
@@ -1244,6 +1243,57 @@ export default function Dashboard() {
                 Это учебный симулятор с условными данными, не прогноз и не
                 официальная статистика Астаны.
               </span>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {pendingDecisions && (
+        <Modal
+          title="Заменить текущий план?"
+          eyebrow="ПОДТВЕРЖДЕНИЕ ПРИМЕНЕНИЯ"
+          onClose={() => setPendingDecisions(null)}
+        >
+          <div className="apply-confirmation">
+            <p>
+              В текущем плане {decisions.length} решений. После подтверждения
+              они будут заменены выбранным сценарием из{" "}
+              {pendingDecisions.length} решений.
+            </p>
+            <ul>
+              {pendingDecisions.map((decision) => (
+                <li key={decision.measure_id}>
+                  <b>{decision.measure_id}</b>
+                  <span>
+                    {measures.find((m) => m.id === decision.measure_id)?.name}
+                  </span>
+                  <small>{decision.district || "Весь город"}</small>
+                </li>
+              ))}
+            </ul>
+            <p className="muted">
+              Предварительный расчёт обновится без обращения к модели.
+            </p>
+            <div className="confirmation-actions">
+              <button
+                className="button secondary"
+                onClick={() => setPendingDecisions(null)}
+              >
+                Оставить текущий план
+              </button>
+              <button
+                className="button primary"
+                onClick={() => {
+                  updateDecisions(pendingDecisions);
+                  setPendingDecisions(null);
+                  setTab("command");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  setToast(
+                    "Сценарий применён. Можно изменить решения или открыть итоговый отчёт.",
+                  );
+                }}
+              >
+                Подтвердить замену
+              </button>
             </div>
           </div>
         </Modal>
