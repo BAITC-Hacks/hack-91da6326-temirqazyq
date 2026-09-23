@@ -72,11 +72,15 @@ cd backend && python -m pytest -q      # 24 теста: формула, вали
 ```bash
 # OpenAI
 LLM_PROVIDER=openai  LLM_API_KEY=sk-...  LLM_MODEL=gpt-4o-mini
-# NVIDIA NIM (OpenAI-совместимый)
-LLM_PROVIDER=nvidia  LLM_API_KEY=nvapi-...  LLM_MODEL=meta/llama-3.1-70b-instruct
+# NVIDIA NIM (build.nvidia.com) — base_url подставит пресет, хватает двух строк
+LLM_PROVIDER=nvidia  LLM_API_KEY=nvapi-...
 ```
 
 Любой OpenAI-совместимый сервер подключается через `LLM_PROVIDER=custom` + `LLM_BASE_URL`.
+
+Про NVIDIA отдельно: Советник работает через tool-calling, и его поддерживают не все модели каталога.
+Если выбранная модель не умеет вызывать инструменты, этот агент уйдёт в шаблонный режим и пометит ответ
+`_mode: fallback` — остальные три агента и весь движок при этом работают как обычно.
 Если запрос к модели упал, агент автоматически деградирует в шаблонный режим и помечает ответ `_mode: fallback`.
 
 ---

@@ -170,6 +170,18 @@ button.primary {
 button.primary:hover:not(:disabled) {
   background: var(--accent-soft);
 }
+button.danger {
+  background: var(--canvas);
+  border: 1px solid #d03b3b59;
+  color: var(--neg-ink);
+  box-shadow: none;
+  font-weight: 600;
+}
+button.danger:hover:not(:disabled) {
+  background: var(--bad-wash);
+  border-color: var(--critical);
+  box-shadow: none;
+}
 button.ghost {
   background: transparent;
   border-color: transparent;
@@ -698,12 +710,14 @@ textarea:disabled {
 .picks-label { font-size: 11px; letter-spacing: 0.2px; color: var(--ink-mute); text-transform: uppercase; font-weight: 600; }
 .picks-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: var(--s-sm); }
 .pick {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  display: flex;
+  border: 1px solid transparent; flex-direction: column; align-items: flex-start; gap: 1px;
   background: var(--canvas-sunk); border: none; box-shadow: none;
   border-radius: var(--r-md); padding: 6px 10px; color: var(--ink-secondary);
 }
-.pick:hover:not(:disabled) { background: var(--accent-wash); box-shadow: none; }
+.pick:hover:not(:disabled) { background: var(--accent-wash); border-color: var(--accent); box-shadow: none; }
 .pick .d { font-size: 12px; font-weight: 500; }
+.pick .plus { color: var(--accent); font-weight: 700; margin-right: 3px; }
 .pick .v { font-size: 14px; font-weight: 700; color: var(--ink-mute); }
 .pick.good .v { color: var(--pos-ink); }
 
@@ -1377,7 +1391,7 @@ tr.picked td {
 /* знак вопроса: понятнее раскрывающегося блока, ответ приходит по наведению */
 .qmark {
   width: 20px; height: 20px; padding: 0; border: none; box-shadow: none;
-  display: inline-grid; place-items: center; vertical-align: -4px;
+  display: inline-grid; place-items: center; vertical-align: 1px;
   border-radius: var(--r-pill); background: var(--accent-wash); color: var(--accent-deep);
   font-size: 12px; font-weight: 700; cursor: help;
 }

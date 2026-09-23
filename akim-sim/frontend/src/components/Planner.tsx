@@ -333,10 +333,10 @@ export default function Planner({
                                 В плане: {districtName(meta, sel.district_id)}
                               </span>
                               <button
-                                className="small ghost"
+                                className="small danger"
                                 onClick={() => remove(decisions.indexOf(sel))}
                               >
-                                Убрать
+                                Убрать из плана
                               </button>
                             </>
                           ) : m.scope === 'city' ? (
@@ -352,7 +352,7 @@ export default function Planner({
                             /* Вместо выпадающего списка — районы сразу с очками:
                                видно, что даст каждый, до того как выбрать. */
                             <div className="picks">
-                              <span className="picks-label">Куда поставить:</span>
+                              <span className="picks-label">Добавить в район:</span>
                               <div className="picks-row">
                                 {meta.districts.map((d) => {
                                   const o = deltaOf(m.id, 'district', d.id);
@@ -369,7 +369,10 @@ export default function Planner({
                                       title={o?.breaks_rules ?? reason?.text}
                                       onClick={() => add(m.id, d.id)}
                                     >
-                                      <span className="d">{d.name}</span>
+                                      <span className="d">
+                                        <span className="plus">+</span>
+                                        {d.name}
+                                      </span>
                                       <span className="v num">
                                         {o ? signed(o.delta) : '—'}
                                       </span>
@@ -502,11 +505,12 @@ export default function Planner({
             {busy ? <><span className="spinner" /> Считаем…</> : 'Рассчитать результат'}
           </button>
           <button
-            className="ghost"
+            className="danger"
             onClick={() => onChange([])}
             disabled={!decisions.length}
+            title="Убрать все выбранные меры и начать заново"
           >
-            Сброс
+            Очистить всё
           </button>
         </div>
 
