@@ -11,7 +11,6 @@ import SideNav, { type NavStep } from './components/SideNav'
 import Tour from './components/Tour'
 import { PLANNER_TOUR } from './components/tourSteps'
 import { EXAMPLE_DECISIONS, plural } from './lib'
-import { Hint } from './components/Viz'
 
 type Tab = 'plan' | 'result' | 'council' | 'event' | 'board'
 
@@ -144,26 +143,30 @@ export default function App() {
       )}
       {tourOn && <Tour steps={PLANNER_TOUR} onDone={() => setTourOn(false)} />}
       <header className="topbar">
-        <div className="title">
-          <h1>Аким на 5 часов</h1>
-          <span>
-            Бюджет {world?.budget ?? meta.rules.budget} · {meta.rules.decisions_required} решений · горизонт{' '}
-            {meta.rules.horizon_quarters} кварталов · база без решений {meta.base_score}
-          </span>
-        </div>
-        {eventId && <span className="badge event">⚡ {meta.events.find((e) => e.id === eventId)?.title}</span>}
-        {meta.llm.enabled ? (
-          <span className="badge on">LLM: {meta.llm.provider} / {meta.llm.model}</span>
-        ) : (
-          <span className="badge warn">
-            <Hint term="fallback">шаблонный режим</Hint>
+        <h1>Аким на 5 часов</h1>
+        {/* Бейдж события оставлен: он не справочный, а про состояние — предупреждает,
+            что расчёты идут в мире после катастрофы, а не в базовом. */}
+        {eventId && (
+          <span className="badge event">
+            ⚡ {meta.events.find((e) => e.id === eventId)?.title}
           </span>
         )}
         <div className="topbar-actions">
-          <button className="small ghost" onClick={() => { setTab('plan'); setTourOn(true) }}>
+          <button
+            className="small ghost"
+            onClick={() => {
+              setTab('plan');
+              setTourOn(true);
+            }}
+          >
             Показать, как пользоваться
           </button>
-          <button className="help" title="Что это за симулятор" aria-label="Что это за симулятор" onClick={() => setShowIntro(true)}>
+          <button
+            className="help"
+            title="Что это за симулятор"
+            aria-label="Что это за симулятор"
+            onClick={() => setShowIntro(true)}
+          >
             ?
           </button>
         </div>

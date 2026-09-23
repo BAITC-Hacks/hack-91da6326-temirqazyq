@@ -161,7 +161,7 @@ export default function Planner({
             </p>
             <div className="row mt">
               <button
-                className="small ghost"
+                className="small"
                 onClick={() => onChange(EXAMPLE_DECISIONS)}
               >
                 Загрузить пример из датасета
@@ -352,7 +352,7 @@ export default function Planner({
                             /* Вместо выпадающего списка — районы сразу с очками:
                                видно, что даст каждый, до того как выбрать. */
                             <div className="picks">
-                              <span className="picks-label">Добавить в район:</span>
+                              <span className="picks-label">Добавить — выберите район:</span>
                               <div className="picks-row">
                                 {meta.districts.map((d) => {
                                   const o = deltaOf(m.id, 'district', d.id);
