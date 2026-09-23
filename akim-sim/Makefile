@@ -1,4 +1,4 @@
-.PHONY: install dev-back dev-front build run test
+.PHONY: install dev-back dev-front build run test verify
 
 install:
 	pip install -r backend/requirements.txt
@@ -18,3 +18,8 @@ run: build
 
 test:
 	cd backend && python -m pytest -q
+
+# Независимая перепроверка математики: формула реализована заново, без импорта движка,
+# и результаты сравниваются. --full добавляет полный перебор всех наборов (~10 секунд).
+verify:
+	python tools/selfcheck.py --full

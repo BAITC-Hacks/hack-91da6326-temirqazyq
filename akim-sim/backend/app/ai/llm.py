@@ -5,6 +5,10 @@
     LLM_API_KEY  = ключ
     LLM_MODEL    = имя модели
     LLM_BASE_URL = переопределение base_url (для custom)
+    LLM_MAX_TOKENS = лимит ответа (по умолчанию 2048)
+    LLM_EXTRA_BODY = JSON, добавляемый в тело каждого запроса — например
+                     {"chat_template_kwargs": {"enable_thinking": false}}
+                     чтобы отключить reasoning у Nemotron через vLLM
 
 Если ключа нет — ``available()`` возвращает False и агенты используют
 детерминированный fallback (см. ai/fallback.py), чтобы демо не зависело от сети.
@@ -32,6 +36,19 @@ class LLMConfig:
         self.model = os.environ.get("LLM_MODEL") or preset.get("model")
         self.temperature = float(os.environ.get("LLM_TEMPERATURE", "0.3"))
         self.timeout = float(os.environ.get("LLM_TIMEOUT", "60"))
+        self.max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "2048"))
+        self.extra_body = self._parse_extra_body(os.environ.get("LLM_EXTRA_BODY"))
+
+    @staticmethod
+    def _parse_extra_body(raw: Optional[str]) -> Dict[str, Any]:
+        """Битый JSON в переменной окружения не должен ронять приложение."""
+        if not raw or not raw.strip():
+            return {}
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return value if isinstance(value, dict) else {}
 
     @property
     def enabled(self) -> bool:
@@ -66,6 +83,13 @@ class LLM:
     def available(self) -> bool:
         return self.cfg.enabled
 
+    def _common(self) -> Dict[str, Any]:
+        """Параметры, которые одинаковы для обычного запроса и для агентного цикла."""
+        kwargs: Dict[str, Any] = {"model": self.cfg.model, "max_tokens": self.cfg.max_tokens}
+        if self.cfg.extra_body:
+            kwargs["extra_body"] = self.cfg.extra_body
+        return kwargs
+
     @property
     def client(self):
         if self._client is None:
@@ -78,7 +102,7 @@ class LLM:
     def chat_json(self, system: str, user: str, temperature: Optional[float] = None) -> Any:
         """Один запрос → JSON-объект. Сначала пробуем response_format, при ошибке — обычный текст."""
         kwargs = dict(
-            model=self.cfg.model,
+            **self._common(),
             temperature=self.cfg.temperature if temperature is None else temperature,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         )
@@ -104,7 +128,7 @@ class LLM:
         log: List[Dict[str, Any]] = []
         for _ in range(max_steps):
             resp = self.client.chat.completions.create(
-                model=self.cfg.model, temperature=self.cfg.temperature, messages=messages, tools=tools, tool_choice="auto"
+                **self._common(), temperature=self.cfg.temperature, messages=messages, tools=tools, tool_choice="auto"
             )
             msg = resp.choices[0].message
             if msg.tool_calls:
@@ -125,7 +149,7 @@ class LLM:
             return {"result": extract_json(msg.content or "{}"), "tool_calls": log}
         # исчерпали шаги — просим финальный ответ без инструментов
         messages.append({"role": "user", "content": "Заверши работу и верни финальный JSON без вызова инструментов."})
-        resp = self.client.chat.completions.create(model=self.cfg.model, temperature=self.cfg.temperature, messages=messages)
+        resp = self.client.chat.completions.create(**self._common(), temperature=self.cfg.temperature, messages=messages)
         return {"result": extract_json(resp.choices[0].message.content or "{}"), "tool_calls": log}
 
 

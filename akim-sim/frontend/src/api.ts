@@ -30,10 +30,10 @@ export type IndicatorTrace = {
   contributions: { measure_id: string; district_id: string | null; raw: number; realized: number; kind: string }[]
 }
 export type DistrictTrace = { district_id: string; name: string; population_share: number; score_before: number; score_after: number; indicators: IndicatorTrace[] }
-export type MeasureContribution = { measure_id: string; district_id: string | null; name: string; cost: number; lag: number; realized_share: number; marginal_score: number; solo_score: number }
+export type MeasureContribution = { measure_id: string; district_id: string | null; name: string; cost: number; lag: number; realized_share: number; marginal_score: number; solo_score: number; shapley_score: number }
 
 export type ScoreResult = {
-  score: number; base_score: number; delta: number; d_avg: number; d_min: number; d_min_district: string; n_crit: number; critical_cells: string[]
+  score: number; base_score: number; delta: number; score_exact: number; base_score_exact: number; d_avg: number; d_min: number; d_min_district: string; n_crit: number; critical_cells: string[]
   base_d_avg: number; base_d_min: number; base_n_crit: number; total_cost: number; budget: number; remaining: number
   districts: DistrictTrace[]; measures: MeasureContribution[]
   synergies: { first: string; second: string; district_id: string; indicator: string; bonus: number; note: string }[]
@@ -71,6 +71,39 @@ export type Oracle = {
   histogram: { from: number; to: number; count: number }[]
 }
 
+export type CustomEvent = {
+  event: { id: string; title: string; narrative: string; shocks: { district: string; indicator: string; delta: number }[]; blocked_measures: string[]; budget_delta: number }
+  interpretation: string
+  world: World
+  score_before: number | null
+  score_after_if_unchanged: number
+  base_score_after: number
+  plan_still_valid: boolean
+  validation: ValidationResult
+  narration: { briefing: string; impact_summary: string; advice: string[]; _mode: string }
+  advisor: Analysis['advisor'] | null
+  rescue: { best_score: number; best_set: Decision[]; best_set_human: string[]; n_valid: number }
+  _mode: string
+}
+
+export type GuideOption = {
+  measure_id: string; district_id: string | null; delta: number; cost: number
+  affordable: boolean; breaks_rules: string | null
+}
+export type GuideDistrict = {
+  district_id: string; name: string; population_share: number; score: number
+  weakest: { code: string; name: string; value: number; critical: boolean }[]
+  best_move: GuideOption | null
+}
+export type GuideBundle = {
+  goal: string; title: string; why: string; decisions: Decision[]; human: string[]
+  score: number; cost: number; d_min: number; n_crit: number
+}
+export type Guide = {
+  base_score: number; remaining: number
+  options: GuideOption[]; districts: GuideDistrict[]; bundles: GuideBundle[]
+}
+
 export type Entry = { id: number; team: string; event_id: string | null; decisions: Decision[]; score: number; delta: number; total_cost: number; n_crit: number; d_min: number; note: string; created_at: string; rank?: number }
 
 export type Compare = {
@@ -99,6 +132,10 @@ export const api = {
   score: (decisions: Decision[], event_id: string | null) => post<ScoreOut>('/api/score', { decisions, event_id }),
   analyze: (decisions: Decision[], event_id: string | null) => post<Analysis>('/api/analyze', { decisions, event_id }),
   council: (decisions: Decision[], event_id: string | null) => post<Council>('/api/council', { decisions, event_id }),
+  guide: (decisions: Decision[], event_id: string | null) =>
+    req<Guide>('/api/guide', { method: 'POST', body: JSON.stringify({ decisions, event_id }) }),
+  customEvent: (decisions: Decision[], event_id: string | null, text: string) =>
+    req<CustomEvent>('/api/event/custom', { method: 'POST', body: JSON.stringify({ decisions, event_id, text }) }),
   oracle: (event_id: string | null) => req<Oracle>(`/api/oracle${event_id ? `?event_id=${event_id}` : ''}`),
   triggerEvent: (decisions: Decision[], event_id: string | null, trigger_event_id: string | null, exclude: string[]) =>
     post<EventOut>('/api/event/trigger', { decisions, event_id, trigger_event_id, exclude }),

@@ -22,7 +22,7 @@ def decisions_human(decisions: List[Decision], ds: Dataset) -> List[str]:
     return out
 
 
-def build_context(decisions: List[Decision], result: ScoreResult, world: WorldState, ds: Optional[Dataset] = None, with_oracle: bool = True) -> Dict[str, Any]:
+def build_context(decisions: List[Decision], result: ScoreResult, world: WorldState, ds: Optional[Dataset] = None, with_oracle: bool = True, event: Optional[Any] = None) -> Dict[str, Any]:
     ds = ds or load_dataset()
     ctx: Dict[str, Any] = {
         "event": None,
@@ -56,8 +56,9 @@ def build_context(decisions: List[Decision], result: ScoreResult, world: WorldSt
         "indicator_legend": {i.code: i.name for i in ds.indicators},
         "untouched_districts": [d.name for d in result.districts if all(abs(i.delta) < 1e-9 for i in d.indicators)],
     }
-    if world.event_id:
-        ev = ds.event_map[world.event_id]
+    # событие может быть и не из датасета: «свой чёрный лебедь» собирается на лету
+    ev = event or (ds.event_map.get(world.event_id) if world.event_id else None)
+    if ev is not None:
         ctx["event"] = {"id": ev.id, "title": ev.title, "narrative": ev.narrative, "blocked": ev.blocked_measures, "budget_delta": ev.budget_delta}
     if with_oracle:
         res = oracle(world, ds)

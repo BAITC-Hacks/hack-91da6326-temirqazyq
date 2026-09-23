@@ -74,6 +74,7 @@ class MeasureContribution(BaseModel):
     realized_share: float
     marginal_score: float  # score(all) - score(all without this measure)
     solo_score: float  # score(base + this measure) - score(base)
+    shapley_score: float = 0.0  # вклад по Шепли: сумма по мерам равна дельте точно
 
 
 class SynergyHit(BaseModel):
@@ -96,6 +97,8 @@ class ScoreResult(BaseModel):
     score: float
     base_score: float
     delta: float
+    score_exact: float = 0.0       # без округления до 2 знаков — для отчётов и проверок
+    base_score_exact: float = 0.0
     d_avg: float
     d_min: float
     d_min_district: str

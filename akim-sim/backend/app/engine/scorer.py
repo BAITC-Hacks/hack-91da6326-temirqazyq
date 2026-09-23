@@ -89,6 +89,47 @@ def _aggregate(ind: Dict[str, Dict[str, float]], ds: Dataset):
     return score, dscore, d_avg, d_min_id, crit
 
 
+def shapley_contributions(
+    decisions: List[Decision], world: Optional[WorldState] = None, ds: Optional[Dataset] = None
+) -> List[float]:
+    """Раскладывает прирост Score по мерам вектором Шепли.
+
+    Маржинальный вклад (score(все) − score(без меры)) не аддитивен: синергия M10+M12
+    засчитывается и в M10, и в M12, поэтому сумма маржинальных вкладов расходится с
+    общей дельтой. Шепли усредняет вклад меры по всем порядкам добавления и потому
+    суммируется в дельту ТОЧНО — это математическое свойство, а не приближение.
+
+    Для пяти решений это 2^5 = 32 расчёта, доли миллисекунды.
+    """
+    ds = ds or load_dataset()
+    world = world or default_world(ds)
+    n = len(decisions)
+    if n == 0:
+        return []
+
+    # v(S) для каждого подмножества; ключ — битовая маска
+    v: Dict[int, float] = {}
+    for mask in range(1 << n):
+        subset = [decisions[i] for i in range(n) if mask & (1 << i)]
+        v[mask] = raw_score(subset, world, ds)
+
+    fact = [1.0] * (n + 1)
+    for i in range(1, n + 1):
+        fact[i] = fact[i - 1] * i
+
+    out: List[float] = []
+    for i in range(n):
+        phi = 0.0
+        for mask in range(1 << n):
+            if mask & (1 << i):
+                continue
+            k = bin(mask).count("1")  # размер коалиции без i
+            weight = fact[k] * fact[n - k - 1] / fact[n]
+            phi += weight * (v[mask | (1 << i)] - v[mask])
+        out.append(phi)
+    return out
+
+
 def raw_score(decisions: List[Decision], world: Optional[WorldState] = None, ds: Optional[Dataset] = None) -> float:
     ds = ds or load_dataset()
     world = world or default_world(ds)
@@ -135,7 +176,8 @@ def score_scenario(decisions: List[Decision], world: Optional[WorldState] = None
         )
 
     measures: List[MeasureContribution] = []
-    for dec in decisions:
+    shapley = shapley_contributions(decisions, world, ds)
+    for idx, dec in enumerate(decisions):
         m = mm[dec.measure_id]
         without = [x for x in decisions if x is not dec]
         marginal = score - raw_score(without, world, ds)
@@ -150,6 +192,7 @@ def score_scenario(decisions: List[Decision], world: Optional[WorldState] = None
                 realized_share=realized_share(m.lag, ds.horizon),
                 marginal_score=round(marginal, 3),
                 solo_score=round(solo, 3),
+                shapley_score=round(shapley[idx], 3),
             )
         )
 
@@ -165,7 +208,12 @@ def score_scenario(decisions: List[Decision], world: Optional[WorldState] = None
     return ScoreResult(
         score=round(score, 2),
         base_score=round(base_score, 2),
-        delta=round(score - base_score, 2),
+        # разность ПОКАЗЫВАЕМЫХ значений, иначе на экране 56.54 − 52.56 = 3.98,
+        # а подписано было бы 3.99 (точная дельта 3.9854). Точное значение доступно
+        # как score_exact/base_score_exact ниже.
+        delta=round(round(score, 2) - round(base_score, 2), 2),
+        score_exact=round(score, 5),
+        base_score_exact=round(base_score, 5),
         d_avg=round(d_avg, 3),
         d_min=round(dscore[d_min_id], 3),
         d_min_district=d_min_id,

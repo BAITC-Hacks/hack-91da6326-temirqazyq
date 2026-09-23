@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -24,14 +25,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import db, report
-from .ai import pipeline
+from .ai import agents, fallback, pipeline
 from .ai.llm import get_llm
 from .engine.data import load_dataset
-from .engine.events import pick_event, world_for_event
+from .engine.events import apply_event, custom_event_from_spec, pick_event, world_for_event
 from .engine.models import Decision, ScoreResult, ValidationResult, WorldState
-from .engine.optimizer import best_swaps, oracle, percentile
-from .engine.scorer import score_scenario
+from .engine.optimizer import best_by_goal, best_swaps, oracle, percentile
+from .engine.scorer import raw_score, score_scenario
 from .engine.validator import validate
+
+log = logging.getLogger("akim.api")
 
 ds = load_dataset()
 
@@ -136,6 +139,95 @@ def api_score(body: ScenarioIn) -> ScoreOut:
     return ScoreOut(validation=v, result=result, world=world)
 
 
+GOALS = [
+    ("score", "Максимум оценки", "Лучший возможный набор без оглядки на цену"),
+    ("weakest", "Подтянуть слабейший район", "30% оценки — балл худшего района; этот набор поднимает именно его"),
+    ("no_crit", "Закрыть провалы дёшево", "Ни одного показателя ниже 40 при минимальной цене"),
+    ("cheap", "Лучшее за скромные деньги", "Максимум оценки, если потратить не больше 70% бюджета"),
+]
+
+
+@app.post("/api/guide")
+def api_guide(body: ScenarioIn) -> Dict[str, Any]:
+    """Подсказчик планировщика: во что обойдётся каждый следующий шаг.
+
+    Всё здесь считает движок, LLM не участвует. Смысл — убрать «тыкаю наугад»:
+    для каждого доступного варианта заранее известно, на сколько он сдвинет оценку
+    именно в текущем наборе (с учётом синергий и потолка шкалы).
+    """
+    world = _world(body.event_id)
+    current = list(body.decisions)
+    chosen = {d.measure_id for d in current}
+    base = raw_score(current, world, ds)
+    remaining = world.budget - sum(ds.measure_map[d.measure_id].cost for d in current)
+
+    options: List[Dict[str, Any]] = []
+    for m in ds.measures:
+        if m.id in chosen or m.id in world.blocked_measures:
+            continue
+        targets: List[Optional[str]] = [d.id for d in ds.districts] if m.scope == "district" else [None]
+        for dist in targets:
+            cand = current + [Decision(measure_id=m.id, district_id=dist)]
+            v = validate(cand, world, ds) if len(cand) == ds.decisions_required else None
+            options.append({
+                "measure_id": m.id,
+                "district_id": dist,
+                "delta": round(raw_score(cand, world, ds) - base, 2),
+                "cost": m.cost,
+                "affordable": m.cost <= remaining,
+                "breaks_rules": None if v is None else (None if v.valid else "; ".join(i.message for i in v.issues)),
+            })
+    options.sort(key=lambda o: -o["delta"])
+
+    # что просит каждый район: самые слабые показатели и лучший ход именно для него
+    trace = score_scenario(current, world, ds) if current else None
+    districts: List[Dict[str, Any]] = []
+    for d in ds.districts:
+        cur_ind = (
+            {i.code: i.final for i in next(x for x in trace.districts if x.district_id == d.id).indicators}
+            if trace else dict(world.baseline[d.id])
+        )
+        weak = sorted(cur_ind.items(), key=lambda kv: kv[1])[:3]
+        best = max(
+            (o for o in options if o["district_id"] == d.id and o["affordable"]),
+            key=lambda o: o["delta"], default=None,
+        )
+        districts.append({
+            "district_id": d.id,
+            "name": d.name,
+            "population_share": d.population_share,
+            "score": round(sum(ds.weights[c] * v for c, v in cur_ind.items()), 2),
+            "weakest": [
+                {"code": c, "name": next(i.name for i in ds.indicators if i.code == c),
+                 "value": round(v, 1), "critical": v < ds.critical_threshold}
+                for c, v in weak
+            ],
+            "best_move": best,
+        })
+    districts.sort(key=lambda x: x["score"])
+
+    bundles: List[Dict[str, Any]] = []
+    for goal, title, why in GOALS:
+        found = best_by_goal(goal, world, ds)
+        if not found:
+            continue
+        _, decs = found
+        r = score_scenario(decs, world, ds)
+        bundles.append({
+            "goal": goal, "title": title, "why": why,
+            "decisions": [{"measure_id": x.measure_id, "district_id": x.district_id} for x in decs],
+            "human": [
+                f"{x.measure_id} «{ds.measure_map[x.measure_id].name}»"
+                + (f" — {next(y.name for y in ds.districts if y.id == x.district_id)}" if x.district_id else " — весь город")
+                for x in decs
+            ],
+            "score": r.score, "cost": r.total_cost, "d_min": round(r.d_min, 2), "n_crit": r.n_crit,
+        })
+
+    return {"base_score": round(base, 2), "remaining": remaining,
+            "options": options, "districts": districts, "bundles": bundles}
+
+
 @app.post("/api/analyze")
 def api_analyze(body: AnalyzeIn) -> Dict[str, Any]:
     world, result = _scored(body.decisions, body.event_id)
@@ -210,6 +302,77 @@ def api_event_trigger(body: EventIn) -> Dict[str, Any]:
         "plan_still_valid": v1.valid,
         "validation": v1,
         "narration": narration,
+    }
+
+
+class CustomEventIn(ScenarioIn):
+    text: str = Field(..., min_length=10, max_length=1200, description="Проблема своими словами")
+
+
+@app.post("/api/event/custom")
+def api_event_custom(body: CustomEventIn) -> Dict[str, Any]:
+    """«Свой чёрный лебедь»: произвольный текст → событие → пересчёт → что делать дальше.
+
+    Разделение ответственности то же, что и везде: модель только ИНТЕРПРЕТИРУЕТ текст в
+    параметры (какие показатели, каких районов, насколько), а все последствия считает движок.
+    Результат модели проходит через custom_event_from_spec, который выбрасывает всё
+    неопознанное и зажимает величины.
+    """
+    llm = get_llm()
+    if llm.available():
+        try:
+            spec = agents.run_event_designer(llm, body.text)
+            mode = "llm"
+        except Exception as exc:  # noqa: BLE001 — падение модели не должно ронять функцию
+            log.warning("Конструктор события упал (%s) — ключевые слова", exc)
+            spec, mode = fallback.event_designer(body.text), "fallback"
+    else:
+        spec, mode = fallback.event_designer(body.text), "fallback"
+
+    ev = custom_event_from_spec(spec, ds)
+    if not ev.shocks and not ev.blocked_measures and ev.budget_delta == 0:
+        raise HTTPException(422, "Из описания не удалось извлечь влияние на город. Опишите, что именно ухудшилось и где.")
+
+    base_world = _world(body.event_id)
+    v0 = validate(body.decisions, base_world, ds)
+    before = score_scenario(body.decisions, base_world, ds) if v0.valid else None
+
+    world = apply_event(ev, base_world, ds)
+    v1 = validate(body.decisions, world, ds)
+    after = score_scenario([d for d in body.decisions if d.measure_id not in world.blocked_measures], world, ds)
+
+    narration = pipeline.narrate_event(body.decisions, after, world, before.score if before else after.base_score, ds, event=ev)
+    advice = pipeline.analyze(body.decisions, after, world, ds, include=["advisor"]) if v1.valid else None
+
+    # Если план развалился — именно тогда помощь нужнее всего, а советнику не от чего плясать.
+    # Даём детерминированный ответ движка: лучший возможный набор уже в НОВОМ мире.
+    res = oracle(world, ds)
+    rescue = {
+        "best_score": round(res.best_score, 2),
+        "best_set": [{"measure_id": d.measure_id, "district_id": d.district_id} for d in res.best],
+        "best_set_human": [
+            f"{d.measure_id} «{ds.measure_map[d.measure_id].name}»"
+            + (f" — {next(x.name for x in ds.districts if x.id == d.district_id)}" if d.district_id else " — весь город")
+            for d in res.best
+        ],
+        "n_valid": res.n_valid,
+    }
+
+    return {
+        "event": {"id": ev.id, "title": ev.title, "narrative": ev.narrative,
+                  "shocks": [s.__dict__ for s in ev.shocks], "blocked_measures": ev.blocked_measures,
+                  "budget_delta": ev.budget_delta},
+        "interpretation": str(spec.get("interpretation") or ""),
+        "world": world,
+        "score_before": before.score if before else None,
+        "score_after_if_unchanged": after.score,
+        "base_score_after": after.base_score,
+        "plan_still_valid": v1.valid,
+        "validation": v1,
+        "narration": narration,
+        "advisor": (advice or {}).get("advisor"),
+        "rescue": rescue,
+        "_mode": mode,
     }
 
 

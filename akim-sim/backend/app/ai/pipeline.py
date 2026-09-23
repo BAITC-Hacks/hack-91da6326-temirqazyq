@@ -61,8 +61,8 @@ def council(decisions: List[Decision], result: ScoreResult, world: WorldState, d
     return out
 
 
-def narrate_event(decisions: List[Decision], result_after: ScoreResult, world_after: WorldState, before_score: float, ds: Optional[Dataset] = None, llm: Optional[LLM] = None) -> Dict[str, Any]:
+def narrate_event(decisions: List[Decision], result_after: ScoreResult, world_after: WorldState, before_score: float, ds: Optional[Dataset] = None, llm: Optional[LLM] = None, event: Optional[Any] = None) -> Dict[str, Any]:
     ds = ds or load_dataset()
     llm = llm or get_llm()
-    ctx = build_context(decisions, result_after, world_after, ds, with_oracle=False)
+    ctx = build_context(decisions, result_after, world_after, ds, with_oracle=False, event=event)
     return _guard("event", lambda: agents.run_event_narrator(llm, ctx, before_score), lambda: fallback.event_narrator(ctx, before_score), llm)

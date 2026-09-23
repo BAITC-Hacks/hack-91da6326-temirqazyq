@@ -65,3 +65,59 @@ def test_event_leaderboard_compare_report():
         html = client.get(f"/api/report/{e1['id']}").text
         assert "Alpha" in html and "56.54" in html
         assert e2["id"] != e1["id"]
+
+
+def test_advisor_cannot_report_invented_score():
+    """Главная гарантия проекта: число из ответа модели не попадает в UI как есть.
+
+    Подставляем вместо LLM заглушку, которая возвращает две рекомендации:
+    одну валидную с выдуманным Score 99.9 и одну с невалидным набором (6 мер, перебор бюджета).
+    Советник обязан перезаписать первую расчётом движка и пометить вторую как непрошедшую.
+    """
+    from app.ai import agents
+    from app.ai.context import build_context
+    from app.engine.data import load_dataset
+    from app.engine.models import Decision
+    from app.engine.scorer import score_scenario
+    from app.engine.validator import default_world
+
+    ds = load_dataset()
+    world = default_world(ds)
+    decisions = [Decision(measure_id=d["measure_id"], district_id=d.get("district_id")) for d in EXAMPLE]
+    result = score_scenario(decisions, world, ds)
+    ctx = build_context(decisions, result, world, ds)
+
+    honest_set = [
+        {"measure_id": "M2", "district_id": None},
+        {"measure_id": "M3", "district_id": "nura"},
+        {"measure_id": "M8", "district_id": "nura"},
+        {"measure_id": "M9", "district_id": "nura"},
+        {"measure_id": "M14", "district_id": None},
+    ]
+
+    class LyingLLM:
+        def chat_tools(self, *a, **kw):
+            return {
+                "result": {
+                    "recommendations": [
+                        {"title": "Выдумка", "change": "—", "decisions": honest_set,
+                         "new_score": 99.9, "gain": 43.4, "cost": 1, "rationale": "..."},
+                        {"title": "Невалидный набор", "change": "—",
+                         "decisions": honest_set + [{"measure_id": "M7", "district_id": "nura"}],
+                         "new_score": 80.0, "gain": 23.5, "cost": 5, "rationale": "..."},
+                    ],
+                    "keep_as_is_argument": "",
+                },
+                "tool_calls": [],
+            }
+
+    out = agents.run_advisor(LyingLLM(), ctx, decisions, world, ds)
+    good, bad = out["recommendations"]
+
+    assert good["verified"] is True
+    assert good["new_score"] != 99.9          # выдуманное число перезаписано
+    assert good["new_score"] == 57.24         # движок посчитал настоящее
+    assert good["cost"] == 98                 # и настоящую стоимость вместо «1»
+
+    assert bad["verified"] is False           # шесть мер вместо пяти
+    assert "invalid_reason" in bad

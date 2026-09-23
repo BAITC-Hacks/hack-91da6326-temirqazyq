@@ -2,8 +2,9 @@
 import pytest
 
 from app.engine import Decision, load_dataset, score_scenario, validate
-from app.engine.events import world_for_event
+from app.engine.events import custom_event_from_spec, world_for_event
 from app.engine.optimizer import best_swaps, oracle, percentile
+from app.engine.scorer import shapley_contributions
 
 EXAMPLE = [
     Decision(measure_id="M7", district_id="nura"),
@@ -106,3 +107,44 @@ def test_event_world():
     w4 = world_for_event("EV4")
     assert w4.budget == 85
     assert not validate(EXAMPLE, w4).valid
+
+
+def test_shapley_sums_exactly_to_delta():
+    """Маржинальные вклады не аддитивны (синергия считается дважды), Шепли — аддитивен точно."""
+    r = score_scenario(EXAMPLE)
+    exact_delta = r.score_exact - r.base_score_exact
+    phi = shapley_contributions(EXAMPLE)
+
+    assert sum(phi) == pytest.approx(exact_delta, abs=1e-9)
+    # и это не совпадение с маржинальными: у пары M10+M12 бонус синергии должен разойтись пополам
+    marginal = {m.measure_id: m.marginal_score for m in r.measures}
+    shap = {m.measure_id: m.shapley_score for m in r.measures}
+    assert shap["M10"] < marginal["M10"]
+    assert shap["M12"] < marginal["M12"]
+    assert sum(marginal.values()) > exact_delta  # сумма маржинальных завышена
+
+
+def test_displayed_delta_is_consistent():
+    """То, что видно на экране, должно сходиться: score − base == delta."""
+    r = score_scenario(EXAMPLE)
+    assert round(r.score - r.base_score, 2) == r.delta
+
+
+def test_custom_event_spec_is_sanitized():
+    """Ответ модели — не доверенный ввод: чужие районы, выдуманные меры и запредельные величины отсекаются."""
+    ev = custom_event_from_spec({
+        "title": "x" * 500,
+        "shocks": [
+            {"district": "nura", "indicator": "C1", "delta": -12},      # валидный
+            {"district": "atlantis", "indicator": "C1", "delta": -12},  # нет такого района
+            {"district": "nura", "indicator": "ZZ9", "delta": -12},     # нет такого показателя
+            {"district": "esil", "indicator": "E2", "delta": -999},     # за пределами лимита
+        ],
+        "blocked_measures": ["M3", "M99"],
+        "budget_delta": -500,
+    })
+    assert [(s.district, s.indicator) for s in ev.shocks] == [("nura", "C1"), ("esil", "E2")]
+    assert ev.shocks[1].delta == -25.0          # зажато лимитом
+    assert ev.blocked_measures == ["M3"]        # выдуманная мера отброшена
+    assert ev.budget_delta == -40               # зажат лимит бюджета
+    assert len(ev.title) <= 120

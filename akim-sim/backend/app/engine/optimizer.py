@@ -34,6 +34,15 @@ class OracleResult:
     top: List[Tuple[float, int, List[Decision]]]  # (score, cost, decisions)
     pareto: List[Tuple[int, float, List[Decision]]]  # (cost, score, decisions)
     scores_sorted: np.ndarray  # для перцентилей
+    # Плоские массивы по ВСЕМ допустимым наборам. Нужны, чтобы искать лучший набор
+    # не только по Score, но и по другой цели — например «максимум у слабейшего района».
+    flat_scores: np.ndarray = None       # type: ignore[assignment]
+    flat_dmin: np.ndarray = None         # type: ignore[assignment]
+    flat_ncrit: np.ndarray = None        # type: ignore[assignment]
+    flat_cost: np.ndarray = None         # type: ignore[assignment]
+    _combo_of: np.ndarray = None         # type: ignore[assignment]
+    _row_of: np.ndarray = None           # type: ignore[assignment]
+    _choices: list = None                # type: ignore[assignment]
 
 
 _cache: Dict[str, OracleResult] = {}
@@ -77,6 +86,8 @@ def _enumerate(world: WorldState, ds: Dataset) -> OracleResult:
     same_inc = {(i.a, i.b) for i in ds.incompatibilities if i.scope == "same_district"}
 
     all_scores: List[np.ndarray] = []
+    all_dmin: List[np.ndarray] = []
+    all_ncrit: List[np.ndarray] = []
     all_costs: List[int] = []
     all_choices: List[Tuple[Tuple[str, ...], np.ndarray]] = []  # (measure ids, district idx matrix (P,5))
 
@@ -122,6 +133,8 @@ def _enumerate(world: WorldState, ds: Dataset) -> OracleResult:
         ncrit = (ind < ds.critical_threshold).sum(axis=(1, 2))
         score = W_AVG * avg + W_MIN * mn - W_CRIT * ncrit
         all_scores.append(score)
+        all_dmin.append(mn)
+        all_ncrit.append(ncrit)
         all_costs.append(cost)
         all_choices.append((ids, dist_mat))
 
@@ -154,6 +167,13 @@ def _enumerate(world: WorldState, ds: Dataset) -> OracleResult:
         top=top,
         pareto=pareto,
         scores_sorted=np.sort(flat_scores),
+        flat_scores=flat_scores,
+        flat_dmin=np.concatenate(all_dmin),
+        flat_ncrit=np.concatenate(all_ncrit),
+        flat_cost=cost_of,
+        _combo_of=combo_of,
+        _row_of=row_of,
+        _choices=all_choices,
     )
 
 
@@ -168,6 +188,48 @@ def oracle(world: Optional[WorldState] = None, ds: Optional[Dataset] = None) -> 
     with _lock:
         _cache[key] = res
     return res
+
+
+def decode_at(res: OracleResult, ds: Dataset, i: int) -> List[Decision]:
+    """Восстанавливает набор решений по индексу в плоских массивах."""
+    dists = [d.id for d in ds.districts]
+    ids, dm = res._choices[int(res._combo_of[i])]
+    row = dm[int(res._row_of[i])]
+    return [Decision(measure_id=m, district_id=(dists[int(d)] if d != -1 else None)) for m, d in zip(ids, row)]
+
+
+def best_by_goal(goal: str, world: Optional[WorldState] = None, ds: Optional[Dataset] = None):
+    """Лучший допустимый набор под конкретную цель, а не только под максимум Score.
+
+    Перебор уже сделан — здесь только выбор индекса по другому критерию, это миллисекунды.
+    Возвращает (индекс, набор) либо None, если под цель ничего не подходит.
+    """
+    ds = ds or load_dataset()
+    world = world or default_world(ds)
+    res = oracle(world, ds)
+    s, dmin, ncrit, cost = res.flat_scores, res.flat_dmin, res.flat_ncrit, res.flat_cost
+
+    if goal == "score":
+        idx = int(np.argmax(s))
+    elif goal == "weakest":                      # поднять самый слабый район
+        best = dmin.max()
+        mask = dmin >= best - 1e-9
+        idx = int(np.where(mask, s, -1e9).argmax())   # среди них — лучший по Score
+    elif goal == "no_crit":                      # закрыть провалы как можно дешевле
+        mask = ncrit == 0
+        if not mask.any():
+            return None
+        idx = int(np.where(mask, -cost, -1e9).argmax())
+    elif goal == "cheap":                        # лучшее за скромные деньги
+        limit = int(world.budget * 0.7)
+        mask = cost <= limit
+        if not mask.any():
+            return None
+        idx = int(np.where(mask, s, -1e9).argmax())
+    else:
+        raise ValueError(f"Неизвестная цель {goal}")
+
+    return idx, decode_at(res, ds, idx)
 
 
 def percentile(score: float, res: OracleResult) -> float:
