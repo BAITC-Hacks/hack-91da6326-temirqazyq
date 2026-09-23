@@ -1,0 +1,5 @@
+[
+  {"measure_ids":["M1","M2"],"district_measure_id":"M1","effects":{"T1":2}},
+  {"measure_ids":["M10","M12"],"district_measure_id":"M10","effects":{"B1":2}},
+  {"measure_ids":["M5","M6"],"district_measure_id":"M5","effects":{"E2":2}}
+]

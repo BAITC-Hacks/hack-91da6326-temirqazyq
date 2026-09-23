@@ -1,0 +1,15 @@
+{
+  "city": "Астана",
+  "budget": 100,
+  "required_decisions": 5,
+  "max_per_category": 2,
+  "horizon": 8,
+  "indicator_min": 0,
+  "indicator_max": 100,
+  "critical_threshold": 40,
+  "score_coefficients": {"average": 0.7, "weakest": 0.3, "critical_penalty": 1},
+  "weights": {"T1": 0.10, "T2": 0.10, "E1": 0.09, "E2": 0.11, "S1": 0.11, "S2": 0.11, "B1": 0.09, "B2": 0.09, "C1": 0.10, "C2": 0.10},
+  "categories": {"transport": ["T1", "T2"], "ecology": ["E1", "E2"], "social": ["S1", "S2"], "safety": ["B1", "B2"], "services": ["C1", "C2"]},
+  "category_labels": {"transport": "Транспорт", "ecology": "Экология", "social": "Социальная сфера", "safety": "Безопасность", "services": "Городские сервисы"},
+  "indicator_labels": {"T1": "Разгрузка дорог", "T2": "Доступность общественного транспорта", "E1": "Озеленение", "E2": "Качество воздуха", "S1": "Школы и детсады", "S2": "Поликлиники и первичная помощь", "B1": "Безопасность улиц", "B2": "Безопасность дорожного движения", "C1": "Надёжность ЖКХ", "C2": "Скорость решения обращений жителей"}
+}
