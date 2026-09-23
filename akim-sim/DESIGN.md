@@ -489,7 +489,7 @@ Product UI composites use `srcset` with art-direction crops at major breakpoints
 ---
 ---
 
-# Приложение: применение в «Аким на 5 часов»
+# Приложение: применение в «Qurultay»
 
 > Всё выше — файл `design-md/stripe/DESIGN.md` из коллекции
 > [voltagent/awesome-design-md](https://github.com/voltagent/awesome-design-md), скопированный без правок.

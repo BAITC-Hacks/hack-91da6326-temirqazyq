@@ -129,7 +129,7 @@ akim-sim/
 │  ├─ app/report.py           # HTML-презентация сценария
 │  ├─ app/main.py             # FastAPI, раздача собранного фронта
 │  └─ tests/                  # pytest: движок + API
-├─ DESIGN.md                  # дизайн-система (linear.app из awesome-design-md) + правила слоя данных
+├─ DESIGN.md                  # дизайн-система (stripe из awesome-design-md) + правила слоя данных
 ├─ frontend/                  # React 19 + TypeScript + Vite + Recharts
 │  └─ src/components/         # Planner, Results, AIPanel, CouncilPanel, EventPanel, Leaderboard, Viz
 ├─ Dockerfile, docker-compose.yml, Makefile, .env.example
